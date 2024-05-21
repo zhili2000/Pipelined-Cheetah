@@ -9,11 +9,12 @@ namespace asio = boost::asio;
 class client {
 public:
     client(asio::io_context& io_context, const std::string& host, const std::string& port,
-           const std::string& network, const std::string& framework)
+           const std::string& network, const std::string& framework, const std::string& batch_size)
         : io_context_(io_context),
           socket_(io_context),
           network_(network),
-          framework_(framework) {
+          framework_(framework),
+       	  batch_size_(batch_size) {
         // Resolve the host and port
         tcp::resolver resolver(io_context);
         endpoints_ = resolver.resolve(host, port);
@@ -33,7 +34,7 @@ private:
     }
 
     void send_request() {
-        std::string message = network_ + " " + framework_ + "\n";  // Ensure newline
+        std::string message = network_ + " " + framework_ + " " + batch_size_ + "\n";  // Ensure newline
 	std::cout << "Sending message: " << message << std::flush;
         asio::async_write(socket_, asio::buffer(message),
             [this](boost::system::error_code ec, std::size_t) {
@@ -56,7 +57,7 @@ private:
     }
 
     void execute_connection_command() {
-        std::string command = "sudo bash scripts/run-client.sh " + framework_ + " " + network_;
+        std::string command = "sudo bash scripts/run-client-optimized.sh " + framework_ + " " + network_ + " " + batch_size_;
         system(command.c_str());
     }
 
@@ -70,13 +71,14 @@ private:
     std::string response_;
     std::string network_;
     std::string framework_;
+    std::string batch_size_;
     tcp::resolver::results_type endpoints_;
 };
 
 int main(int argc, char* argv[]) {
     try {
-        if (argc != 5) {
-            std::cerr << "Usage: client <host> <port> <framework> <network>\n";
+        if (argc != 6) {
+            std::cerr << "Usage: client <host> <port> <framework> <network> <batch_size>\n";
             return 1;
         }
         asio::io_context io_context;
@@ -84,8 +86,9 @@ int main(int argc, char* argv[]) {
         std::string port = argv[2];
         std::string framework = argv[3];
         std::string network = argv[4];
+	std::string batch_size = argv[5];
 
-        client c(io_context, host, port, network, framework);
+        client c(io_context, host, port, network, framework, batch_size);
         io_context.run();
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";

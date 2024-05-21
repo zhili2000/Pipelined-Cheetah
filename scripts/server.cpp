@@ -51,11 +51,11 @@ private:
     void process_data() {
         auto self = shared_from_this(); // Maintain a reference to keep the session alive
         std::istringstream iss(data_);
-        std::string network, framework;
-        iss >> network >> framework;
+        std::string network, framework, batch_size;
+        iss >> network >> framework >> batch_size;
 
-        std::thread([this, self, network, framework]() {
-            std::string command = "sudo bash scripts/run-server.sh " + framework + " " + network;
+        std::thread([this, self, network, framework, batch_size]() {
+            std::string command = "sudo bash scripts/run-server-optimized.sh " + framework + " " + network + " " + batch_size;
             int result = system(command.c_str());
             if (result != 0) {
                 std::cerr << "Command execution failed with return code " << result << std::endl;
