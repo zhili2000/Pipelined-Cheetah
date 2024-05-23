@@ -3245,9 +3245,9 @@ int main(int argc, char **argv) {
         (party == SERVER) ? __tmp_in_tmp52 : 0;
   }
   std::cerr << "input loaded, starting computation..." << std::endl;
-  StartComputation();
 
   auto layer1 = [tmp1, tmp2, kScale](uint64_t* input, uint64_t** output) {
+    StartComputation();
     std::cerr << "point 1" << std::endl;
     uint64_t *tmp53 =
         make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
@@ -4093,6 +4093,7 @@ int main(int argc, char **argv) {
     ArgMax3((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1,
             (int32_t)1, (int32_t)1000, tmp299, tmp301, tmp302);
     ClearMemPublic(tmp301);
+    EndComputation();
     std::cerr << "Finished0" << std::endl;
 
     std::vector<double> prediction_vector(1000);
@@ -4128,6 +4129,7 @@ int main(int argc, char **argv) {
         }
       }
     }
+    finalize();
   };
 
   // Create LayerProcessor instances for each layer
@@ -4216,9 +4218,6 @@ int main(int argc, char **argv) {
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
-
-  EndComputation();
-  finalize();
 
   images.clear();
 
