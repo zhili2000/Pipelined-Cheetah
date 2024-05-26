@@ -50,5 +50,6 @@ extern int party;
 extern std::string address;
 extern int port;
 extern int num_threads;
+extern int im_batch_size;
 
 #endif

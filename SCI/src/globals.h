@@ -54,98 +54,101 @@ SOFTWARE.
 
 #define MAX_THREADS 4
 
-extern sci::NetIO *io;
-extern sci::OTPack<sci::NetIO> *otpack;
+// Maximum batch size allowed
+#define MAX_BATCH 5
+
+extern sci::NetIO *io[MAX_BATCH];
+extern sci::OTPack<sci::NetIO> *otpack[MAX_BATCH];
 
 #ifdef SCI_OT
-extern LinearOT *mult;
-extern AuxProtocols *aux;
-extern Truncation *truncation;
-extern XTProtocol *xt;
-extern MathFunctions *math;
+extern LinearOT *mult[MAX_BATCH];
+extern AuxProtocols *aux[MAX_BATCH];
+extern Truncation *truncation[MAX_BATCH];
+extern XTProtocol *xt[MAX_BATCH];
+extern MathFunctions *math[MAX_BATCH];
 #endif
-extern ArgMaxProtocol<sci::NetIO, intType> *argmax;
-extern ReLUProtocol<sci::NetIO, intType> *relu;
-extern MaxPoolProtocol<sci::NetIO, intType> *maxpool;
+extern ArgMaxProtocol<sci::NetIO, intType> *argmax[MAX_BATCH];
+extern ReLUProtocol<sci::NetIO, intType> *relu[MAX_BATCH];
+extern MaxPoolProtocol<sci::NetIO, intType> *maxpool[MAX_BATCH];
 // Additional classes for Athos
 
 #ifdef SCI_OT
 extern MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform;
 #elif defined(SCI_HE)
-extern FCField *he_fc;
-extern ElemWiseProdField *he_prod;
+extern FCField *he_fc[MAX_BATCH];
+extern ElemWiseProdField *he_prod[MAX_BATCH];
 #endif
 
 #if USE_CHEETAH
-extern gemini::CheetahLinear *cheetah_linear;
+extern gemini::CheetahLinear *cheetah_linear[MAX_BATCH];
 extern bool kIsSharedInput;
 #elif defined(SCI_HE)
-extern ConvField *he_conv;
+extern ConvField *he_conv[MAX_BATCH];
 #endif
 
-extern sci::IKNP<sci::NetIO> *iknpOT;
-extern sci::IKNP<sci::NetIO> *iknpOTRoleReversed;
-extern sci::KKOT<sci::NetIO> *kkot;
-extern sci::PRG128 *prg128Instance;
+extern sci::IKNP<sci::NetIO> *iknpOT[MAX_BATCH];
+extern sci::IKNP<sci::NetIO> *iknpOTRoleReversed[MAX_BATCH];
+extern sci::KKOT<sci::NetIO> *kkot[MAX_BATCH];
+extern sci::PRG128 *prg128Instance[MAX_BATCH];
 
-extern sci::NetIO *ioArr[MAX_THREADS];
-extern sci::OTPack<sci::NetIO> *otpackArr[MAX_THREADS];
+extern sci::NetIO *ioArr[MAX_THREADS * MAX_BATCH];
+extern sci::OTPack<sci::NetIO> *otpackArr[MAX_THREADS * MAX_BATCH];
 #ifdef SCI_OT
-extern LinearOT *multArr[MAX_THREADS];
-extern AuxProtocols *auxArr[MAX_THREADS];
-extern Truncation *truncationArr[MAX_THREADS];
-extern XTProtocol *xtArr[MAX_THREADS];
-extern MathFunctions *mathArr[MAX_THREADS];
+extern LinearOT *multArr[MAX_THREADS * MAX_BATCH];
+extern AuxProtocols *auxArr[MAX_THREADS * MAX_BATCH];
+extern Truncation *truncationArr[MAX_THREADS * MAX_BATCH];
+extern XTProtocol *xtArr[MAX_THREADS * MAX_BATCH];
+extern MathFunctions *mathArr[MAX_THREADS * MAX_BATCH];
 #endif
-extern ReLUProtocol<sci::NetIO, intType> *reluArr[MAX_THREADS];
-extern MaxPoolProtocol<sci::NetIO, intType> *maxpoolArr[MAX_THREADS];
+extern ReLUProtocol<sci::NetIO, intType> *reluArr[MAX_THREADS * MAX_BATCH];
+extern MaxPoolProtocol<sci::NetIO, intType> *maxpoolArr[MAX_THREADS * MAX_BATCH];
 // Additional classes for Athos
 #ifdef SCI_OT
 extern MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>>
-    *multUniformArr[MAX_THREADS];
+    *multUniformArr[MAX_THREADS * MAX_BATCH];
 #endif
-extern sci::IKNP<sci::NetIO> *otInstanceArr[MAX_THREADS];
-extern sci::KKOT<sci::NetIO> *kkotInstanceArr[MAX_THREADS];
-extern sci::PRG128 *prgInstanceArr[MAX_THREADS];
+extern sci::IKNP<sci::NetIO> *otInstanceArr[MAX_THREADS * MAX_BATCH];
+extern sci::KKOT<sci::NetIO> *kkotInstanceArr[MAX_THREADS * MAX_BATCH];
+extern sci::PRG128 *prgInstanceArr[MAX_THREADS * MAX_BATCH];
 
-extern std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-extern uint64_t comm_threads[MAX_THREADS];
-extern uint64_t num_rounds;
+extern std::chrono::time_point<std::chrono::high_resolution_clock> start_time[MAX_BATCH];
+extern uint64_t comm_threads[MAX_THREADS * MAX_BATCH];
+extern uint64_t num_rounds[MAX_BATCH];
 
 #ifdef LOG_LAYERWISE
-extern uint64_t ConvTimeInMilliSec;
-extern uint64_t MatAddTimeInMilliSec;
-extern uint64_t BatchNormInMilliSec;
-extern uint64_t TruncationTimeInMilliSec;
-extern uint64_t ReluTimeInMilliSec;
-extern uint64_t MaxpoolTimeInMilliSec;
-extern uint64_t AvgpoolTimeInMilliSec;
-extern uint64_t MatMulTimeInMilliSec;
-extern uint64_t MatAddBroadCastTimeInMilliSec;
-extern uint64_t MulCirTimeInMilliSec;
-extern uint64_t ScalarMulTimeInMilliSec;
-extern uint64_t SigmoidTimeInMilliSec;
-extern uint64_t TanhTimeInMilliSec;
-extern uint64_t SqrtTimeInMilliSec;
-extern uint64_t NormaliseL2TimeInMilliSec;
-extern uint64_t ArgMaxTimeInMilliSec;
+extern uint64_t ConvTimeInMilliSec[MAX_BATCH];
+extern uint64_t MatAddTimeInMilliSec[MAX_BATCH];
+extern uint64_t BatchNormInMilliSec[MAX_BATCH];
+extern uint64_t TruncationTimeInMilliSec[MAX_BATCH];
+extern uint64_t ReluTimeInMilliSec[MAX_BATCH];
+extern uint64_t MaxpoolTimeInMilliSec[MAX_BATCH];
+extern uint64_t AvgpoolTimeInMilliSec[MAX_BATCH];
+extern uint64_t MatMulTimeInMilliSec[MAX_BATCH];
+extern uint64_t MatAddBroadCastTimeInMilliSec[MAX_BATCH];
+extern uint64_t MulCirTimeInMilliSec[MAX_BATCH];
+extern uint64_t ScalarMulTimeInMilliSec[MAX_BATCH];
+extern uint64_t SigmoidTimeInMilliSec[MAX_BATCH];
+extern uint64_t TanhTimeInMilliSec[MAX_BATCH];
+extern uint64_t SqrtTimeInMilliSec[MAX_BATCH];
+extern uint64_t NormaliseL2TimeInMilliSec[MAX_BATCH];
+extern uint64_t ArgMaxTimeInMilliSec[MAX_BATCH];
 
-extern uint64_t ConvCommSent;
-extern uint64_t MatAddCommSent;
-extern uint64_t BatchNormCommSent;
-extern uint64_t TruncationCommSent;
-extern uint64_t ReluCommSent;
-extern uint64_t MaxpoolCommSent;
-extern uint64_t AvgpoolCommSent;
-extern uint64_t MatMulCommSent;
-extern uint64_t MatAddBroadCastCommSent;
-extern uint64_t MulCirCommSent;
-extern uint64_t ScalarMulCommSent;
-extern uint64_t SigmoidCommSent;
-extern uint64_t TanhCommSent;
-extern uint64_t SqrtCommSent;
-extern uint64_t NormaliseL2CommSent;
-extern uint64_t ArgMaxCommSent;
+extern uint64_t ConvCommSent[MAX_BATCH];
+extern uint64_t MatAddCommSent[MAX_BATCH];
+extern uint64_t BatchNormCommSent[MAX_BATCH];
+extern uint64_t TruncationCommSent[MAX_BATCH];
+extern uint64_t ReluCommSent[MAX_BATCH];
+extern uint64_t MaxpoolCommSent[MAX_BATCH];
+extern uint64_t AvgpoolCommSent[MAX_BATCH];
+extern uint64_t MatMulCommSent[MAX_BATCH];
+extern uint64_t MatAddBroadCastCommSent[MAX_BATCH];
+extern uint64_t MulCirCommSent[MAX_BATCH];
+extern uint64_t ScalarMulCommSent[MAX_BATCH];
+extern uint64_t SigmoidCommSent[MAX_BATCH];
+extern uint64_t TanhCommSent[MAX_BATCH];
+extern uint64_t SqrtCommSent[MAX_BATCH];
+extern uint64_t NormaliseL2CommSent[MAX_BATCH];
+extern uint64_t ArgMaxCommSent[MAX_BATCH];
 #endif
 
 #endif // GLOBALS_H__

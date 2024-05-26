@@ -34,12 +34,13 @@ else
   # Find the first file that matches the pattern
   file=$(ls $pattern 2>/dev/null | head -n 1)
 
+  # Mimicking there are multiple images for batch processing
   # Generate batch.txt with the desired number of file names
   for ((i=0; i<$3; i++)); do
     echo "$file" >> batch.txt
   done
 
-  cat batch.txt | build/bin/$2-$1 r=2 k=$FXP_SCALE ell=$SS_BITLEN nt=$NUM_THREADS ip=$SERVER_IP p=$SERVER_PORT b=$3 #1>$1-$2_client_$(date +%s%N).log
+  cat batch.txt | build/bin/$2-$1 r=2 k=$FXP_SCALE ell=$SS_BITLEN nt=$NUM_THREADS ip=$SERVER_IP p=$SERVER_PORT b=$3 1>$1-$2_client_$(date +%s%N).log
 
   echo -e "Computation done, check out the log file ${GREEN}$1-$2_client_$(date +%s%N).log${NC}"
 fi

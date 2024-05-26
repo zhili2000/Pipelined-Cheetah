@@ -26,7 +26,7 @@ SOFTWARE.
 //using namespace std;
 using namespace sci;
 
-void initialize() {
+void initialize(int task_number) {
   assert(num_threads <= MAX_THREADS);
 
   for (int i = 0; i < num_threads; i++) {
@@ -38,10 +38,13 @@ void initialize() {
       otpackArr[i] = new OTPack<sci::NetIO>(ioArr[i], party);
     }
   }
-  io = ioArr[0];
-  otpack = otpackArr[0];
+  io[task_number - 1] = ioArr[0];
+  otpack[task_number - 1] = otpackArr[0];
 
-  for (int i = 0; i < num_threads; i++) {
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
+  for (int i = start; i < end; i++) {
     if (i & 1) {
       auxArr[i] = new AuxProtocols(3 - party, ioArr[i], otpackArr[i]);
       truncationArr[i] =
@@ -58,23 +61,26 @@ void initialize() {
       mathArr[i] = new MathFunctions(party, ioArr[i], otpackArr[i]);
     }
   }
-  aux = auxArr[0];
-  truncation = truncationArr[0];
-  xt = xtArr[0];
-  mult = multArr[0];
-  math = mathArr[0];
+  aux[task_number - 1] = auxArr[start];
+  truncation[task_number - 1] = truncationArr[start];
+  xt[task_number - 1] = xtArr[start];
+  mult[task_number - 1] = multArr[start];
+  math[task_number - 1] = mathArr[start];
 
-  io->sync();
-  num_rounds = io->num_rounds;
-  start_time = std::chrono::high_resolution_clock::now();
+  io[task_number - 1]->sync();
+  num_rounds[task_number - 1] = io[task_number - 1]->num_rounds;
+  start_time[task_number - 1] = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < num_threads; i++) {
     auto temp = ioArr[i]->counter;
     comm_threads[i] = temp;
   }
 }
 
-void finalize() {
-  for (int i = 0; i < num_threads; i++) {
+void finalize(int task_number) {
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
+  for (int i = start; i < end; i++) {
     delete ioArr[i];
 #if !USE_CHEETAH
     delete otpackArr[i];
@@ -102,15 +108,15 @@ void reconstruct(int64_t *A, int64_t *B, int32_t I, int32_t J, int bwA) {
   }
 }
 
-void reconstruct(int dim, uint64_t *x, uint64_t *y, int bw_x) {
+void reconstruct(int dim, uint64_t *x, uint64_t *y, int bw_x, int task_number) {
   uint64_t mask = (bw_x == 64 ? -1 : ((1ULL << bw_x) - 1));
   if (party == sci::ALICE) {
-    io->send_data(x, dim * sizeof(uint64_t));
+    io[task_number - 1]->send_data(x, dim * sizeof(uint64_t));
     for (int i = 0; i < dim; i++) {
       y[i] = 0;
     }
   } else {
-    io->recv_data(y, dim * sizeof(uint64_t));
+    io[task_number - 1]->recv_data(y, dim * sizeof(uint64_t));
     for (int i = 0; i < dim; i++) {
       y[i] = (y[i] + x[i]) & mask;
     }
@@ -150,7 +156,7 @@ void reconstruct(uint64_t *A, int64_t *B, int32_t I, int32_t J, int bwA) {
 }
 
 void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-                    int32_t scale) {
+                    int32_t scale, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -158,7 +164,7 @@ void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 
   int32_t dim = I * J;
 #ifdef DIV_RESCALING
-  truncation->div_pow2(dim, A, B, scale, bwA, true);
+  truncation[task_number - 1]->div_pow2(dim, A, B, scale, bwA, true);
 #else
   truncation->truncate(dim, A, B, scale, bwA, true);
 #endif
@@ -167,16 +173,16 @@ void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
   auto temp = TIMER_TILL_NOW;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatAddTimeInMilliSec += temp;
+  MatAddTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current AdjustScaleShr = " << (temp / 1000.0)
             << std::endl;
-  MatAddCommSent += curComm;
+  MatAddCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
             int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp, int32_t shrA,
-            int32_t shrB, int32_t shrC, int32_t demote, bool subroutine) {
+            int32_t shrB, int32_t shrC, int32_t demote, bool subroutine, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -193,15 +199,15 @@ void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
   uint64_t *tmpB = new uint64_t[dim];
   uint64_t *tmpC = new uint64_t[dim];
 
-  xt->s_extend(dim, A, tmpA, bwA, bwTemp);
-  xt->s_extend(dim, B, tmpB, bwB, bwTemp);
+  xt[task_number - 1]->s_extend(dim, A, tmpA, bwA, bwTemp);
+  xt[task_number - 1]->s_extend(dim, B, tmpB, bwB, bwTemp);
 
 #ifdef DIV_RESCALING
-  truncation->div_pow2(dim, tmpA, A, shrA + shrC, bwTemp, true);
-  truncation->div_pow2(dim, tmpB, B, shrB + shrC, bwTemp, true);
+  truncation[task_number - 1]->div_pow2(dim, tmpA, A, shrA + shrC, bwTemp, true);
+  truncation[task_number - 1]->div_pow2(dim, tmpB, B, shrB + shrC, bwTemp, true);
 #else
-  truncation->truncate(dim, tmpA, A, shrA + shrC, bwTemp, true);
-  truncation->truncate(dim, tmpB, B, shrB + shrC, bwTemp, true);
+  truncation[task_number - 1]->truncate(dim, tmpA, A, shrA + shrC, bwTemp, true);
+  truncation[task_number - 1]->truncate(dim, tmpB, B, shrB + shrC, bwTemp, true);
 #endif
 
   for (int i = 0; i < dim; i++) {
@@ -209,11 +215,11 @@ void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
   }
 
 #ifdef DIV_RESCALING
-  truncation->div_pow2(dim, tmpC, C, demote, bwTemp, true);
+  truncation[task_number - 1]->div_pow2(dim, tmpC, C, demote, bwTemp, true);
 #else
-  truncation->truncate(dim, tmpC, C, demote, bwTemp, true);
+  truncation[task_number - 1]->truncate(dim, tmpC, C, demote, bwTemp, true);
 #endif
-  aux->reduce(dim, C, C, bwTemp, bwC);
+  aux[task_number - 1]->reduce(dim, C, C, bwTemp, bwC);
 
   delete[] tmpA;
   delete[] tmpB;
@@ -224,10 +230,10 @@ void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
   if (!subroutine) {
-    MatAddTimeInMilliSec += temp;
+    MatAddTimeInMilliSec[task_number - 1] += temp;
     std::cout << "Time in sec for current MatAdd = " << (temp / 1000.0)
               << std::endl;
-    MatAddCommSent += curComm;
+    MatAddCommSent[task_number - 1] += curComm;
   }
 #endif
 }
@@ -235,7 +241,7 @@ void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
 void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
                      int32_t J, int32_t bwA, int32_t bwB, int32_t bwC,
                      int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t shrC,
-                     int32_t demote, bool scalar_A) {
+                     int32_t demote, bool scalar_A, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -255,7 +261,7 @@ void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
 #endif
     }
     MatAdd(tmpA, B, C, I, J, bwTemp, bwB, bwC, bwTemp, 0, shrB + shrC, 0,
-           demote, true);
+           demote, true, task_number);
 
     delete[] tmpA;
   } else {
@@ -270,26 +276,26 @@ void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
 #endif
     }
     MatAdd(A, tmpB, C, I, J, bwA, bwTemp, bwC, bwTemp, shrA + shrC, 0, 0,
-           demote, true);
+           demote, true, task_number);
 
     delete[] tmpB;
   }
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MatAddBroadCastTimeInMilliSec += temp;
+  MatAddBroadCastTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current MatAddBroadCast = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatAddBroadCastCommSent += curComm;
+  MatAddBroadCastCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
                  int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp,
                  int32_t shrA, int32_t shrB, int32_t shrC, bool add,
-                 int32_t demote) {
+                 int32_t demote, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -314,7 +320,7 @@ void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
     }
   }
   MatAdd(A, tmpB, C, I, J, bwA, bwTemp, bwC, bwTemp, shrA + shrC, 0, 0, demote,
-         true);
+         true, task_number);
 
   delete[] tmpB;
 
@@ -793,7 +799,7 @@ void Sqrt_thread(int32_t tid, uint64_t *A, uint64_t *B, int32_t dim,
 }
 
 void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, bool inverse, uint64_t *A, uint64_t *B) {
+          int64_t bwA, int64_t bwB, bool inverse, uint64_t *A, uint64_t *B, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". Sqrt (" << I << " x " << J << ")" << std::endl;
   INIT_TIMER;
@@ -820,12 +826,12 @@ void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   }
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  SqrtTimeInMilliSec += temp;
+  SqrtTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current Sqrt = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  SqrtCommSent += curComm;
+  SqrtCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -1304,7 +1310,7 @@ void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 // template<class int64_t, class int64_t, class int64_t, class int64_t>
 void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
             int64_t demote, int64_t bwA, int64_t bwB, int64_t bwTemp,
-            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, bool verbose) {
+            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, bool verbose, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatAdd(A, B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1335,7 +1341,7 @@ void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
   uint64_t *tmpC = new uint64_t[I * J];
 
   MatAdd(tmpA, tmpB, tmpC, I, J, bwA, bwB, bwC, bwTemp, shiftA, shiftB, shiftC,
-         shift_demote);
+         shift_demote, false, task_number);
 
   typecast_from_uint64(tmpC, C, I, J, bwC);
 

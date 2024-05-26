@@ -41,8 +41,8 @@ SOFTWARE.
 #define Arr2DIdxColM(arr, s0, s1, i, j) (*((arr) + (j) * (s0) + (i)))
 
 intType funcSSCons(int64_t x);
-void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len);
-signedIntType funcReconstruct2PCCons(intType x, int revealParty);
+void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len, int task_number);
+signedIntType funcReconstruct2PCCons(intType x, int revealParty, int task_number);
 
 void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
               const intType *B, intType *C, bool modelIsA);
@@ -53,7 +53,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
                    signedIntType zPadHRight, signedIntType zPadWLeft,
                    signedIntType zPadWRight, signedIntType strideH,
                    signedIntType strideW, intType *inputArr, intType *filterArr,
-                   intType *outArr);
+                   intType *outArr, int task_number);
 
 void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
                         signedIntType CI, signedIntType FH, signedIntType FW,
@@ -72,22 +72,22 @@ void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C,
                intType *outArr);
 #endif
 
-void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr);
+void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr, int task_number);
 
 void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
-          bool doTruncation);
+          bool doTruncation, int task_number);
 
 void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
              int32_t ksizeW, int32_t zPadHLeft, int32_t zPadHRight,
              int32_t zPadWLeft, int32_t zPadWRight, int32_t strideH,
              int32_t strideW, int32_t N1, int32_t imgH, int32_t imgW,
-             int32_t C1, intType *inArr, intType *outArr);
+             int32_t C1, intType *inArr, intType *outArr, int task_number);
 
 void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
              int32_t ksizeW, int32_t zPadHLeft, int32_t zPadHRight,
              int32_t zPadWLeft, int32_t zPadWRight, int32_t strideH,
              int32_t strideW, int32_t N1, int32_t imgH, int32_t imgW,
-             int32_t C1, intType *inArr, intType *outArr);
+             int32_t C1, intType *inArr, intType *outArr, int task_number);
 
 void ScaleDown(int32_t size, intType *inArr, int32_t sf);
 

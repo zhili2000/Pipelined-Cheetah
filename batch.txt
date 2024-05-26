@@ -1,1 +1,2 @@
 pretrained/sqnet_input_scale12_pred248.inp
+pretrained/sqnet_input_scale12_pred248.inp

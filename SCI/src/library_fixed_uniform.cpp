@@ -41,7 +41,7 @@ uint64_t moduloMidPt = prime_mod / 2;
 
 #if !USE_CHEETAH
 void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
-              const intType *B, intType *C, bool modelIsA) {
+              const intType *B, intType *C, bool modelIsA, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -187,7 +187,7 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
       Bt[i][j] = getRingElt(Arr2DIdxRowM(B, s2, s3, j, i));
     }
   }
-  he_fc->matrix_multiplication(s3, s2, s1, Bt, At, Ct);
+  he_fc[task_number - 1]->matrix_multiplication(s3, s2, s1, Bt, At, Ct);
   for (int i = 0; i < s1; i++) {
     for (int j = 0; j < s3; j++) {
       Arr2DIdxRowM(C, s1, s3, i, j) = getRingElt(Ct[j][i]);
@@ -197,12 +197,12 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MatMulTimeInMilliSec += temp;
+  MatMulTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current matmul = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatMulCommSent += curComm;
+  MatMulCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -311,7 +311,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
                    signedIntType zPadHRight, signedIntType zPadWLeft,
                    signedIntType zPadWRight, signedIntType strideH,
                    signedIntType strideW, intType *inputArr, intType *filterArr,
-                   intType *outArr) {
+                   intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -371,7 +371,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
     }
   }
 
-  he_conv->convolution(N, H, W, CI, FH, FW, CO, zPadHLeft, zPadHRight,
+  he_conv[task_number - 1]->convolution(N, H, W, CI, FH, FW, CO, zPadHLeft, zPadHRight,
                        zPadWLeft, zPadWRight, strideH, strideW, inputVec,
                        filterVec, outputVec);
 
@@ -390,12 +390,12 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ConvTimeInMilliSec += temp;
+  ConvTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current conv = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ConvCommSent += curComm;
+  ConvCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -504,7 +504,7 @@ void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
                         signedIntType zPadWRight, signedIntType strideH,
                         signedIntType strideW, signedIntType G,
                         intType *inputArr, intType *filterArr,
-                        intType *outArr) {
+                        intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -526,25 +526,25 @@ void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
 #ifdef SCI_HE
   if (G == 1)
     Conv2DWrapper(N, H, W, CI, FH, FW, CO, zPadHLeft, zPadHRight, zPadWLeft,
-                  zPadWRight, strideH, strideW, inputArr, filterArr, outArr);
+                  zPadWRight, strideH, strideW, inputArr, filterArr, outArr, task_number);
   else
     assert(false && "Grouped conv not implemented in HE");
 #endif
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ConvTimeInMilliSec += temp;
+  ConvTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current conv = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ConvCommSent += curComm;
+  ConvCommSent[task_number - 1] += curComm;
 #endif
 }
 
 #if !USE_CHEETAH
 void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
-                                intType *multArrVec, intType *outputArr) {
+                                intType *multArrVec, intType *outputArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -618,7 +618,7 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
     tempMultArr[i] = getRingElt(multArrVec[i]);
   }
 
-  he_prod->elemwise_product(size, tempInArr, tempMultArr, tempOutArr);
+  he_prod[task_number - 1]->elemwise_product(size, tempInArr, tempMultArr, tempOutArr);
 
   for (int i = 0; i < size; i++) {
     outputArr[i] = getRingElt(tempOutArr[i]);
@@ -627,10 +627,10 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  BatchNormInMilliSec += temp;
+  BatchNormInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  BatchNormCommSent += curComm;
+  BatchNormCommSent[task_number - 1] += curComm;
   std::cout << "Time in sec for current BN = [" << (temp / 1000.0) << "] sent ["
             << (curComm / 1024. / 1024.) << "] MB" << std::endl;
 #endif
@@ -685,7 +685,7 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
 }
 #endif
 
-void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr) {
+void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -697,14 +697,14 @@ void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr) {
   ctr++;
 
   assert(s1 == 1 && "ArgMax impl right now assumes s1==1");
-  argmax->ArgMaxMPC(s2, inArr, outArr);
+  argmax[task_number - 1]->ArgMaxMPC(s2, inArr, outArr);
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ArgMaxTimeInMilliSec += temp;
+  ArgMaxTimeInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ArgMaxCommSent += curComm;
+  ArgMaxCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -751,7 +751,7 @@ void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr) {
 }
 
 void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
-          bool doTruncation) {
+          bool doTruncation, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -771,8 +771,11 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 
 // #ifndef MULTITHREADED_NONLIN
 #if 0
-  relu->relu(tempOutp, tempInp, eightDivElemts, nullptr, doTruncation, true);
+  relu[task_number - 1]->relu(tempOutp, tempInp, eightDivElemts, nullptr, doTruncation, true);
 #else
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
   std::thread relu_threads[num_threads];
   int chunk_size = (eightDivElemts / (8 * num_threads)) * 8;
   for (int i = 0; i < num_threads; ++i) {
@@ -784,7 +787,7 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
       lnum_relu = chunk_size;
     }
     relu_threads[i] =
-        std::thread(funcReLUThread, i, tempOutp + offset, tempInp + offset,
+        std::thread(funcReLUThread, i + start, tempOutp + offset, tempInp + offset,
                     lnum_relu, nullptr, false, doTruncation, /*approx*/ true);
   }
   for (int i = 0; i < num_threads; ++i) {
@@ -794,12 +797,12 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ReluTimeInMilliSec += temp;
+  ReluTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current relu = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ReluCommSent += curComm;
+  ReluCommSent[task_number = 1] += curComm;
 #endif
 
   if (doTruncation) {
@@ -827,17 +830,17 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 
 #else
     funcFieldDivWrapper<intType>(eightDivElemts, tempOutp, tempTruncOutp,
-                                 1ULL << sf, msbShare);
+                                 1ULL << sf, msbShare, task_number);
 #endif
     memcpy(outArr, tempTruncOutp, size * sizeof(intType));
     delete[] tempTruncOutp;
 
 #ifdef LOG_LAYERWISE
     auto temp = TIMER_TILL_NOW;
-    TruncationTimeInMilliSec += temp;
+    TruncationTimeInMilliSec[task_number - 1] += temp;
     uint64_t curComm;
     FIND_ALL_IO_TILL_NOW(curComm);
-    TruncationCommSent += curComm;
+    TruncationCommSent[task_number - 1] += curComm;
 #endif
   } else {
     for (int i = 0; i < size; i++) {
@@ -929,7 +932,7 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
              int32_t ksizeW, int32_t zPadHLeft, int32_t zPadHRight,
              int32_t zPadWLeft, int32_t zPadWRight, int32_t strideH,
              int32_t strideW, int32_t N1, int32_t imgH, int32_t imgW,
-             int32_t C1, intType *inArr, intType *outArr) {
+             int32_t C1, intType *inArr, intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -995,8 +998,11 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
   }
 
 #ifndef MULTITHREADED_NONLIN
-  maxpool->funcMaxMPC(rows, cols, reInpArr, maxi, maxiIdx);
+  maxpool[task_number - 1]->funcMaxMPC(rows, cols, reInpArr, maxi, maxiIdx);
 #else
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
   std::thread maxpool_threads[num_threads];
   int chunk_size = (rows / (8 * num_threads)) * 8;
   for (int i = 0; i < num_threads; ++i) {
@@ -1008,7 +1014,7 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
       lnum_rows = chunk_size;
     }
     maxpool_threads[i] =
-        std::thread(funcMaxpoolThread, i, lnum_rows, cols,
+        std::thread(funcMaxpoolThread, i + start, lnum_rows, cols,
                     reInpArr + offset * cols, maxi + offset, maxiIdx + offset);
   }
   for (int i = 0; i < num_threads; ++i) {
@@ -1033,12 +1039,12 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MaxpoolTimeInMilliSec += temp;
+  MaxpoolTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current maxpool = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MaxpoolCommSent += curComm;
+  MaxpoolCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -1118,7 +1124,7 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
              int32_t ksizeW, int32_t zPadHLeft, int32_t zPadHRight,
              int32_t zPadWLeft, int32_t zPadWRight, int32_t strideH,
              int32_t strideW, int32_t N1, int32_t imgH, int32_t imgW,
-             int32_t C1, intType *inArr, intType *outArr) {
+             int32_t C1, intType *inArr, intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -1187,13 +1193,13 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
     filterSum[i] = filterSum[i] & moduloMask;
   }
   funcAvgPoolTwoPowerRingWrapper(rowsPadded, filterSum, filterAvg,
-                                 ksizeH * ksizeW);
+                                 ksizeH * ksizeW, task_number);
 #else
   for (int i = 0; i < rowsPadded; i++) {
     filterSum[i] = sci::neg_mod(filterSum[i], (int64_t)prime_mod);
   }
   funcFieldDivWrapper<intType>(rowsPadded, filterSum, filterAvg,
-                               ksizeH * ksizeW, nullptr);
+                               ksizeH * ksizeW, nullptr, task_number);
 #endif
 
   for (int n = 0; n < N; n++) {
@@ -1216,12 +1222,12 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  AvgpoolTimeInMilliSec += temp;
+  AvgpoolTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current avgpool = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  AvgpoolCommSent += curComm;
+  AvgpoolCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -1295,7 +1301,7 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
 #endif
 }
 
-void ScaleDown(int32_t size, intType *inArr, int32_t sf) {
+void ScaleDown(int32_t size, intType *inArr, int32_t sf, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -1326,15 +1332,15 @@ void ScaleDown(int32_t size, intType *inArr, int32_t sf) {
     tempInp[i] = sci::neg_mod(tempInp[i], (int64_t)prime_mod);
   }
   funcFieldDivWrapper<intType>(eightDivElemts, tempInp, outp, 1ULL << sf,
-                               nullptr);
+                               nullptr, task_number);
 #endif
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  TruncationTimeInMilliSec += temp;
+  TruncationTimeInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  TruncationCommSent += curComm;
+  TruncationCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -1400,7 +1406,7 @@ void ScaleUp(int32_t size, intType *arr, int32_t sf) {
   }
 }
 
-void StartComputation() {
+void StartComputation(int task_number) {
   assert(bitlength < 64 && bitlength > 0);
   assert(num_threads <= MAX_THREADS);
 
@@ -1428,9 +1434,12 @@ void StartComputation() {
   backend += "-OT";
 #endif
 
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
   checkIfUsingEigen();
   printf("Doing BaseOT ...\n");
-  for (int i = 0; i < num_threads; i++) {
+  for (int i = start; i < end; i++) {
     ioArr[i] = new sci::NetIO(party == sci::ALICE ? nullptr : address.c_str(),
                               port + i, /*quit*/ true);
     otInstanceArr[i] = new sci::IKNP<sci::NetIO>(ioArr[i]);
@@ -1448,51 +1457,51 @@ void StartComputation() {
     }
   }
 
-  io = ioArr[0];
-  otpack = otpackArr[0];
-  iknpOT = new sci::IKNP<sci::NetIO>(io);
-  iknpOTRoleReversed = new sci::IKNP<sci::NetIO>(io);
-  kkot = new sci::KKOT<sci::NetIO>(io);
-  prg128Instance = new sci::PRG128();
+  io[task_number - 1] = ioArr[start];
+  otpack[task_number - 1] = otpackArr[start];
+  iknpOT[task_number - 1] = new sci::IKNP<sci::NetIO>(io[task_number - 1]);
+  iknpOTRoleReversed[task_number - 1] = new sci::IKNP<sci::NetIO>(io[task_number - 1]);
+  kkot[task_number - 1] = new sci::KKOT<sci::NetIO>(io[task_number - 1]);
+  prg128Instance[task_number - 1] = new sci::PRG128();
 
 #ifdef SCI_OT
-  mult = new LinearOT(party, io, otpack);
-  truncation = new Truncation(party, io, otpack);
-  multUniform = new MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>>(
-      party, bitlength, io, iknpOT, iknpOTRoleReversed);
-  relu = new ReLURingProtocol<sci::NetIO, intType>(party, RING, io, bitlength,
-                                                   MILL_PARAM, otpack);
-  maxpool = new MaxPoolProtocol<sci::NetIO, intType>(
-      party, RING, io, bitlength, MILL_PARAM, 0, otpack, relu);
-  argmax = new ArgMaxProtocol<sci::NetIO, intType>(party, RING, io, bitlength,
-                                                   MILL_PARAM, 0, otpack, relu);
-  math = new MathFunctions(party, io, otpack);
+  mult[task_number - 1] = new LinearOT(party, io[task_number - 1], otpack[task_number - 1]);
+  truncation[task_number - 1] = new Truncation(party, io[task_number - 1], otpack[task_number - 1]);
+  multUniform[task_number - 1] = new MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>>(
+      party, bitlength, io[task_number - 1], iknpOT[task_number - 1], iknpOTRoleReversed[task_number - 1]);
+  relu[task_number - 1] = new ReLURingProtocol<sci::NetIO, intType>(party, RING, io[task_number - 1], bitlength,
+                                                   MILL_PARAM, otpack[task_number - 1]);
+  maxpool[task_number - 1] = new MaxPoolProtocol<sci::NetIO, intType>(
+      party, RING, io[task_number - 1], bitlength, MILL_PARAM, 0, otpack[task_number - 1], relu[task_number - 1]);
+  argmax[task_number - 1] = new ArgMaxProtocol<sci::NetIO, intType>(party, RING, io[task_number - 1], bitlength,
+                                                   MILL_PARAM, 0, otpack[task_number - 1], relu[task_number - 1]);
+  math[task_number - 1] = new MathFunctions(party, io[task_number - 1], otpack[task_number - 1]);
 #endif
 
 #if USE_CHEETAH
   backend += "-Cheetah";
-  cheetah_linear = new gemini::CheetahLinear(party, io, prime_mod, num_threads);
+  cheetah_linear[task_number - 1] = new gemini::CheetahLinear(party, io[task_number - 1], prime_mod, num_threads);
 #elif defined(SCI_HE)
   backend += "-SCI_HE";
-  he_conv = new ConvField(party, io);
+  he_conv[task_number - 1] = new ConvField(party, io[task_number - 1]);
 #elif defined(SCI_OT)
   backend += "-SCI_OT";
 #endif
 
 #ifdef SCI_HE
-  relu = new ReLUFieldProtocol<sci::NetIO, intType>(
-      party, FIELD, io, bitlength, MILL_PARAM, prime_mod, otpack);
-  maxpool = new MaxPoolProtocol<sci::NetIO, intType>(
-      party, FIELD, io, bitlength, MILL_PARAM, prime_mod, otpack, relu);
-  argmax = new ArgMaxProtocol<sci::NetIO, intType>(
-      party, FIELD, io, bitlength, MILL_PARAM, prime_mod, otpack, relu);
-  he_fc = new FCField(party, io);
-  he_prod = new ElemWiseProdField(party, io);
+  relu[task_number - 1] = new ReLUFieldProtocol<sci::NetIO, intType>(
+      party, FIELD, io[task_number - 1], bitlength, MILL_PARAM, prime_mod, otpack[task_number - 1]);
+  maxpool[task_number - 1] = new MaxPoolProtocol<sci::NetIO, intType>(
+      party, FIELD, io[task_number - 1], bitlength, MILL_PARAM, prime_mod, otpack[task_number - 1], relu[task_number - 1]);
+  argmax[task_number - 1] = new ArgMaxProtocol<sci::NetIO, intType>(
+      party, FIELD, io[task_number - 1], bitlength, MILL_PARAM, prime_mod, otpack[task_number - 1], relu[task_number - 1]);
+  he_fc[task_number - 1] = new FCField(party, io[task_number - 1]);
+  he_prod[task_number - 1] = new ElemWiseProdField(party, io[task_number - 1]);
   assertFieldRun();
 #endif
 
 #if defined MULTITHREADED_NONLIN && defined SCI_OT
-  for (int i = 0; i < num_threads; i++) {
+  for (int i = start; i < end; i++) {
     if (i & 1) {
       reluArr[i] = new ReLURingProtocol<sci::NetIO, intType>(
           3 - party, RING, ioArr[i], bitlength, MILL_PARAM, otpackArr[i]);
@@ -1514,7 +1523,7 @@ void StartComputation() {
 #endif
 
 #ifdef SCI_HE
-  for (int i = 0; i < num_threads; i++) {
+  for (int i = start; i < end; i++) {
     if (i & 1) {
       reluArr[i] = new ReLUFieldProtocol<sci::NetIO, intType>(
           3 - party, FIELD, ioArr[i], bitlength, MILL_PARAM, prime_mod,
@@ -1535,7 +1544,7 @@ void StartComputation() {
 
 // Math Protocols
 #ifdef SCI_OT
-  for (int i = 0; i < num_threads; i++) {
+  for (int i = start; i < end; i++) {
     if (i & 1) {
       auxArr[i] = new AuxProtocols(3 - party, ioArr[i], otpackArr[i]);
       truncationArr[i] =
@@ -1550,32 +1559,32 @@ void StartComputation() {
       mathArr[i] = new MathFunctions(party, ioArr[i], otpackArr[i]);
     }
   }
-  aux = auxArr[0];
-  truncation = truncationArr[0];
-  xt = xtArr[0];
-  mult = multArr[0];
-  math = mathArr[0];
+  aux[task_number - 1] = auxArr[start];
+  truncation[task_number - 1] = truncationArr[start];
+  xt[task_number - 1] = xtArr[start];
+  mult[task_number - 1] = multArr[start];
+  math[task_number - 1] = mathArr[start];
 #endif
 
   if (party == sci::ALICE) {
-    iknpOT->setup_send();
-    iknpOTRoleReversed->setup_recv();
+    iknpOT[task_number - 1]->setup_send();
+    iknpOTRoleReversed[task_number - 1]->setup_recv();
   } else if (party == sci::BOB) {
-    iknpOT->setup_recv();
-    iknpOTRoleReversed->setup_send();
+    iknpOT[task_number - 1]->setup_recv();
+    iknpOTRoleReversed[task_number - 1]->setup_send();
   }
 
   std::cout << "After one-time setup, communication" << std::endl;
-  start_time = std::chrono::high_resolution_clock::now();
-  for (int i = 0; i < num_threads; i++) {
+  start_time[task_number - 1] = std::chrono::high_resolution_clock::now();
+  for (int i = start; i < end; i++) {
     auto temp = ioArr[i]->counter;
     comm_threads[i] = temp;
     std::cout << "Thread i = " << i << ", total data sent till now = " << temp
               << std::endl;
   }
   std::cout << "-----------Syncronizing-----------" << std::endl;
-  io->sync();
-  num_rounds = io->num_rounds;
+  io[task_number - 1]->sync();
+  num_rounds[task_number - 1] = io[task_number - 1]->num_rounds;
   std::cout << "secret_share_mod: " << prime_mod << " bitlength: " << bitlength
             << std::endl;
   std::cout << "backend: " << backend << std::endl;
@@ -1583,14 +1592,18 @@ void StartComputation() {
             << std::endl;
 }
 
-void EndComputation() {
+void EndComputation(int task_number) {
   auto endTimer = std::chrono::high_resolution_clock::now();
   auto execTimeInMilliSec =
       std::chrono::duration_cast<std::chrono::milliseconds>(endTimer -
-                                                            start_time)
+                                                            start_time[task_number - 1])
           .count();
   uint64_t totalComm = 0;
-  for (int i = 0; i < num_threads; i++) {
+
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
+  for (int i = start; i < end; i++) {
     auto temp = ioArr[i]->counter;
     std::cout << "Thread i = " << i << ", total data sent till now = " << temp
               << std::endl;
@@ -1604,95 +1617,95 @@ void EndComputation() {
             << " milliseconds.\n";
   std::cout << "Total data sent = " << (totalComm / (1.0 * (1ULL << 20)))
             << " MiB." << std::endl;
-  std::cout << "Number of rounds = " << ioArr[0]->num_rounds - num_rounds
+  std::cout << "Number of rounds = " << ioArr[start]->num_rounds - num_rounds[task_number - 1]
             << std::endl;
   if (party == SERVER) {
-    io->recv_data(&totalCommClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&totalCommClient, sizeof(uint64_t));
     std::cout << "Total comm (sent+received) = "
               << ((totalComm + totalCommClient) / (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
   } else if (party == CLIENT) {
-    io->send_data(&totalComm, sizeof(uint64_t));
+    io[task_number - 1]->send_data(&totalComm, sizeof(uint64_t));
     std::cout << "Total comm (sent+received) = (see SERVER OUTPUT)"
               << std::endl;
   }
   std::cout << "------------------------------------------------------\n";
 
 #ifdef LOG_LAYERWISE
-  std::cout << "Total time in Conv = " << (ConvTimeInMilliSec / 1000.0)
+  std::cout << "Total time in Conv = " << (ConvTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in MatMul = " << (MatMulTimeInMilliSec / 1000.0)
+  std::cout << "Total time in MatMul = " << (MatMulTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in BatchNorm = " << (BatchNormInMilliSec / 1000.0)
+  std::cout << "Total time in BatchNorm = " << (BatchNormInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
   std::cout << "Total time in Truncation = "
-            << (TruncationTimeInMilliSec / 1000.0) << " seconds." << std::endl;
-  std::cout << "Total time in Relu = " << (ReluTimeInMilliSec / 1000.0)
+            << (TruncationTimeInMilliSec[task_number - 1] / 1000.0) << " seconds." << std::endl;
+  std::cout << "Total time in Relu = " << (ReluTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in MaxPool = " << (MaxpoolTimeInMilliSec / 1000.0)
+  std::cout << "Total time in MaxPool = " << (MaxpoolTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in AvgPool = " << (AvgpoolTimeInMilliSec / 1000.0)
+  std::cout << "Total time in AvgPool = " << (AvgpoolTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in ArgMax = " << (ArgMaxTimeInMilliSec / 1000.0)
+  std::cout << "Total time in ArgMax = " << (ArgMaxTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in MatAdd = " << (MatAddTimeInMilliSec / 1000.0)
+  std::cout << "Total time in MatAdd = " << (MatAddTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
   std::cout << "Total time in MatAddBroadCast = "
-            << (MatAddBroadCastTimeInMilliSec / 1000.0) << " seconds."
+            << (MatAddBroadCastTimeInMilliSec[task_number - 1] / 1000.0) << " seconds."
             << std::endl;
-  std::cout << "Total time in MulCir = " << (MulCirTimeInMilliSec / 1000.0)
+  std::cout << "Total time in MulCir = " << (MulCirTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
   std::cout << "Total time in ScalarMul = "
-            << (ScalarMulTimeInMilliSec / 1000.0) << " seconds." << std::endl;
-  std::cout << "Total time in Sigmoid = " << (SigmoidTimeInMilliSec / 1000.0)
+            << (ScalarMulTimeInMilliSec[task_number - 1] / 1000.0) << " seconds." << std::endl;
+  std::cout << "Total time in Sigmoid = " << (SigmoidTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in Tanh = " << (TanhTimeInMilliSec / 1000.0)
+  std::cout << "Total time in Tanh = " << (TanhTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
-  std::cout << "Total time in Sqrt = " << (SqrtTimeInMilliSec / 1000.0)
+  std::cout << "Total time in Sqrt = " << (SqrtTimeInMilliSec[task_number - 1] / 1000.0)
             << " seconds." << std::endl;
   std::cout << "Total time in NormaliseL2 = "
-            << (NormaliseL2TimeInMilliSec / 1000.0) << " seconds." << std::endl;
+            << (NormaliseL2TimeInMilliSec[task_number - 1] / 1000.0) << " seconds." << std::endl;
   std::cout << "------------------------------------------------------\n";
-  std::cout << "Conv data sent = " << ((ConvCommSent) / (1.0 * (1ULL << 20)))
+  std::cout << "Conv data sent = " << ((ConvCommSent[task_number - 1]) / (1.0 * (1ULL << 20)))
             << " MiB." << std::endl;
   std::cout << "MatMul data sent = "
-            << ((MatMulCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((MatMulCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "BatchNorm data sent = "
-            << ((BatchNormCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((BatchNormCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "Truncation data sent = "
-            << ((TruncationCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((TruncationCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
-  std::cout << "Relu data sent = " << ((ReluCommSent) / (1.0 * (1ULL << 20)))
+  std::cout << "Relu data sent = " << ((ReluCommSent[task_number - 1]) / (1.0 * (1ULL << 20)))
             << " MiB." << std::endl;
   std::cout << "Maxpool data sent = "
-            << ((MaxpoolCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((MaxpoolCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "Avgpool data sent = "
-            << ((AvgpoolCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((AvgpoolCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "ArgMax data sent = "
-            << ((ArgMaxCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((ArgMaxCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "MatAdd data sent = "
-            << ((MatAddCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((MatAddCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "MatAddBroadCast data sent = "
-            << ((MatAddBroadCastCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((MatAddBroadCastCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "MulCir data sent = "
-            << ((MulCirCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((MulCirCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "Sigmoid data sent = "
-            << ((SigmoidCommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((SigmoidCommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
-  std::cout << "Tanh data sent = " << ((TanhCommSent) / (1.0 * (1ULL << 20)))
+  std::cout << "Tanh data sent = " << ((TanhCommSent[task_number - 1]) / (1.0 * (1ULL << 20)))
             << " MiB." << std::endl;
-  std::cout << "Sqrt data sent = " << ((SqrtCommSent) / (1.0 * (1ULL << 20)))
+  std::cout << "Sqrt data sent = " << ((SqrtCommSent[task_number - 1]) / (1.0 * (1ULL << 20)))
             << " MiB." << std::endl;
   std::cout << "NormaliseL2 data sent = "
-            << ((NormaliseL2CommSent) / (1.0 * (1ULL << 20))) << " MiB."
+            << ((NormaliseL2CommSent[task_number - 1]) / (1.0 * (1ULL << 20))) << " MiB."
             << std::endl;
   std::cout << "------------------------------------------------------\n";
   if (party == SERVER) {
@@ -1713,81 +1726,81 @@ void EndComputation() {
     uint64_t SqrtCommSentClient = 0;
     uint64_t NormaliseL2CommSentClient = 0;
 
-    io->recv_data(&ConvCommSentClient, sizeof(uint64_t));
-    io->recv_data(&MatMulCommSentClient, sizeof(uint64_t));
-    io->recv_data(&BatchNormCommSentClient, sizeof(uint64_t));
-    io->recv_data(&TruncationCommSentClient, sizeof(uint64_t));
-    io->recv_data(&ReluCommSentClient, sizeof(uint64_t));
-    io->recv_data(&MaxpoolCommSentClient, sizeof(uint64_t));
-    io->recv_data(&AvgpoolCommSentClient, sizeof(uint64_t));
-    io->recv_data(&ArgMaxCommSentClient, sizeof(uint64_t));
-    io->recv_data(&MatAddCommSentClient, sizeof(uint64_t));
-    io->recv_data(&MatAddBroadCastCommSentClient, sizeof(uint64_t));
-    io->recv_data(&MulCirCommSentClient, sizeof(uint64_t));
-    io->recv_data(&ScalarMulCommSentClient, sizeof(uint64_t));
-    io->recv_data(&SigmoidCommSentClient, sizeof(uint64_t));
-    io->recv_data(&TanhCommSentClient, sizeof(uint64_t));
-    io->recv_data(&SqrtCommSentClient, sizeof(uint64_t));
-    io->recv_data(&NormaliseL2CommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&ConvCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&MatMulCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&BatchNormCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&TruncationCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&ReluCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&MaxpoolCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&AvgpoolCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&ArgMaxCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&MatAddCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&MatAddBroadCastCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&MulCirCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&ScalarMulCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&SigmoidCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&TanhCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&SqrtCommSentClient, sizeof(uint64_t));
+    io[task_number - 1]->recv_data(&NormaliseL2CommSentClient, sizeof(uint64_t));
 
     std::cout << "Conv data (sent+received) = "
-              << ((ConvCommSent + ConvCommSentClient) / (1.0 * (1ULL << 20)))
+              << ((ConvCommSent[task_number - 1] + ConvCommSentClient) / (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "MatMul data (sent+received) = "
-              << ((MatMulCommSent + MatMulCommSentClient) /
+              << ((MatMulCommSent[task_number - 1] + MatMulCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "BatchNorm data (sent+received) = "
-              << ((BatchNormCommSent + BatchNormCommSentClient) /
+              << ((BatchNormCommSent[task_number - 1] + BatchNormCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Truncation data (sent+received) = "
-              << ((TruncationCommSent + TruncationCommSentClient) /
+              << ((TruncationCommSent[task_number - 1] + TruncationCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Relu data (sent+received) = "
-              << ((ReluCommSent + ReluCommSentClient) / (1.0 * (1ULL << 20)))
+              << ((ReluCommSent[task_number - 1] + ReluCommSentClient) / (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Maxpool data (sent+received) = "
-              << ((MaxpoolCommSent + MaxpoolCommSentClient) /
+              << ((MaxpoolCommSent[task_number - 1] + MaxpoolCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Avgpool data (sent+received) = "
-              << ((AvgpoolCommSent + AvgpoolCommSentClient) /
+              << ((AvgpoolCommSent[task_number - 1] + AvgpoolCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "ArgMax data (sent+received) = "
-              << ((ArgMaxCommSent + ArgMaxCommSentClient) /
+              << ((ArgMaxCommSent[task_number - 1] + ArgMaxCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "MatAdd data (sent+received) = "
-              << ((MatAddCommSent + MatAddCommSentClient) /
+              << ((MatAddCommSent[task_number - 1] + MatAddCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "MatAddBroadCast data (sent+received) = "
-              << ((MatAddBroadCastCommSent + MatAddBroadCastCommSentClient) /
+              << ((MatAddBroadCastCommSent[task_number - 1] + MatAddBroadCastCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "MulCir data (sent+received) = "
-              << ((MulCirCommSent + MulCirCommSentClient) /
+              << ((MulCirCommSent[task_number - 1] + MulCirCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "ScalarMul data (sent+received) = "
-              << ((ScalarMulCommSent + ScalarMulCommSentClient) /
+              << ((ScalarMulCommSent[task_number - 1] + ScalarMulCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Sigmoid data (sent+received) = "
-              << ((SigmoidCommSent + SigmoidCommSentClient) /
+              << ((SigmoidCommSent[task_number - 1] + SigmoidCommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Tanh data (sent+received) = "
-              << ((TanhCommSent + TanhCommSentClient) / (1.0 * (1ULL << 20)))
+              << ((TanhCommSent[task_number - 1] + TanhCommSentClient) / (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "Sqrt data (sent+received) = "
-              << ((SqrtCommSent + SqrtCommSentClient) / (1.0 * (1ULL << 20)))
+              << ((SqrtCommSent[task_number - 1] + SqrtCommSentClient) / (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
     std::cout << "NormaliseL2 data (sent+received) = "
-              << ((NormaliseL2CommSent + NormaliseL2CommSentClient) /
+              << ((NormaliseL2CommSent[task_number - 1] + NormaliseL2CommSentClient) /
                   (1.0 * (1ULL << 20)))
               << " MiB." << std::endl;
 
@@ -1815,43 +1828,43 @@ void EndComputation() {
            << execTimeInMilliSec / 1000.0 << ","
            << (totalComm + totalCommClient) / (1.0 * (1ULL << 20)) << ","
            << ConvTimeInMilliSec / 1000.0 << ","
-           << (ConvCommSent + ConvCommSentClient) / (1.0 * (1ULL << 20)) << ","
-           << MatMulTimeInMilliSec / 1000.0 << ","
-           << (MatMulCommSent + MatMulCommSentClient) / (1.0 * (1ULL << 20))
-           << "," << BatchNormInMilliSec / 1000.0 << ","
-           << (BatchNormCommSent + BatchNormCommSentClient) /
+           << (ConvCommSent[task_number - 1] + ConvCommSentClient) / (1.0 * (1ULL << 20)) << ","
+           << MatMulTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (MatMulCommSent[task_number - 1] + MatMulCommSentClient) / (1.0 * (1ULL << 20))
+           << "," << BatchNormInMilliSec[task_number - 1] / 1000.0 << ","
+           << (BatchNormCommSent[task_number - 1] + BatchNormCommSentClient) /
                   (1.0 * (1ULL << 20))
-           << "," << TruncationTimeInMilliSec / 1000.0 << ","
-           << (TruncationCommSent + TruncationCommSentClient) /
+           << "," << TruncationTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (TruncationCommSent[task_number - 1] + TruncationCommSentClient) /
                   (1.0 * (1ULL << 20))
-           << "," << ReluTimeInMilliSec / 1000.0 << ","
-           << (ReluCommSent + ReluCommSentClient) / (1.0 * (1ULL << 20)) << ","
-           << MaxpoolTimeInMilliSec / 1000.0 << ","
-           << (MaxpoolCommSent + MaxpoolCommSentClient) / (1.0 * (1ULL << 20))
-           << "," << AvgpoolTimeInMilliSec / 1000.0 << ","
-           << (AvgpoolCommSent + AvgpoolCommSentClient) / (1.0 * (1ULL << 20))
-           << "," << ArgMaxTimeInMilliSec / 1000.0 << ","
-           << (ArgMaxCommSent + ArgMaxCommSentClient) / (1.0 * (1ULL << 20))
+           << "," << ReluTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (ReluCommSent[task_number - 1] + ReluCommSentClient) / (1.0 * (1ULL << 20)) << ","
+           << MaxpoolTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (MaxpoolCommSent[task_number - 1] + MaxpoolCommSentClient) / (1.0 * (1ULL << 20))
+           << "," << AvgpoolTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (AvgpoolCommSent[task_number - 1] + AvgpoolCommSentClient) / (1.0 * (1ULL << 20))
+           << "," << ArgMaxTimeInMilliSec[task_number - 1] / 1000.0 << ","
+           << (ArgMaxCommSent[task_number - 1] + ArgMaxCommSentClient) / (1.0 * (1ULL << 20))
            << std::endl;
     result.close();
 #endif
   } else if (party == CLIENT) {
-    io->send_data(&ConvCommSent, sizeof(uint64_t));
-    io->send_data(&MatMulCommSent, sizeof(uint64_t));
-    io->send_data(&BatchNormCommSent, sizeof(uint64_t));
-    io->send_data(&TruncationCommSent, sizeof(uint64_t));
-    io->send_data(&ReluCommSent, sizeof(uint64_t));
-    io->send_data(&MaxpoolCommSent, sizeof(uint64_t));
-    io->send_data(&AvgpoolCommSent, sizeof(uint64_t));
-    io->send_data(&ArgMaxCommSent, sizeof(uint64_t));
-    io->send_data(&MatAddCommSent, sizeof(uint64_t));
-    io->send_data(&MatAddBroadCastCommSent, sizeof(uint64_t));
-    io->send_data(&MulCirCommSent, sizeof(uint64_t));
-    io->send_data(&ScalarMulCommSent, sizeof(uint64_t));
-    io->send_data(&SigmoidCommSent, sizeof(uint64_t));
-    io->send_data(&TanhCommSent, sizeof(uint64_t));
-    io->send_data(&SqrtCommSent, sizeof(uint64_t));
-    io->send_data(&NormaliseL2CommSent, sizeof(uint64_t));
+    io[task_number - 1]->send_data(&ConvCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&MatMulCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&BatchNormCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&TruncationCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&ReluCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&MaxpoolCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&AvgpoolCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&ArgMaxCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&MatAddCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&MatAddBroadCastCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&MulCirCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&ScalarMulCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&SigmoidCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&TanhCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&SqrtCommSent[task_number - 1], sizeof(uint64_t));
+    io[task_number - 1]->send_data(&NormaliseL2CommSent[task_number - 1], sizeof(uint64_t));
   }
 #endif
 }
@@ -1878,7 +1891,7 @@ intType SecretMult(intType x, intType y) {
 }
 
 void ElemWiseVectorPublicDiv(int32_t s1, intType *arr1, int32_t divisor,
-                             intType *outArr) {
+                             intType *outArr, int task_number) {
   intType *inp;
   intType *out;
   const int alignment = 8;
@@ -1897,9 +1910,9 @@ void ElemWiseVectorPublicDiv(int32_t s1, intType *arr1, int32_t divisor,
   assert(divisor > 0 && "No support for division by a negative divisor.");
 
 #ifdef SCI_OT
-  funcAvgPoolTwoPowerRingWrapper(aligned_size, inp, out, (intType)divisor);
+  funcAvgPoolTwoPowerRingWrapper(aligned_size, inp, out, (intType)divisor, task_number);
 #else
-  funcFieldDivWrapper(aligned_size, inp, out, (intType)divisor, nullptr);
+  funcFieldDivWrapper(aligned_size, inp, out, (intType)divisor, nullptr, task_number);
 #endif
 
   if ((size_t)s1 != aligned_size) {
@@ -1912,7 +1925,7 @@ void ElemWiseVectorPublicDiv(int32_t s1, intType *arr1, int32_t divisor,
 }
 
 void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
-                                    intType *multArrVec, intType *outputArr) {
+                                    intType *multArrVec, intType *outputArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -1923,6 +1936,9 @@ void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
 
 #ifdef SCI_OT
 #ifdef MULTITHREADED_DOTPROD
+  int start = (task_number - 1) * num_threads;
+  int end = start + num_threads;
+
   std::thread dotProdThreads[num_threads];
   int chunk_size = (size / num_threads);
   for (int i = 0; i < num_threads; i++) {
@@ -1933,7 +1949,7 @@ void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
     } else {
       curSize = chunk_size;
     }
-    dotProdThreads[i] = std::thread(funcDotProdThread, i, num_threads, curSize,
+    dotProdThreads[i] = std::thread(funcDotProdThread, i + start, num_threads, curSize,
                                     multArrVec + offset, inArr + offset,
                                     outputArr + offset, true);
   }
@@ -1952,10 +1968,10 @@ void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  BatchNormInMilliSec += temp;
+  BatchNormInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  BatchNormCommSent += curComm;
+  BatchNormCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE

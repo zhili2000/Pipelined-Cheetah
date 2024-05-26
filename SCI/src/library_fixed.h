@@ -61,7 +61,7 @@ void finalize();
 void reconstruct(int dim, uint64_t *x, uint64_t *y, int bw_x);
 
 void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-                    int32_t scale);
+                    int32_t scale, int task_number);
 
 void AdjustScaleShr(int32_t I, int32_t J, int32_t scale, int64_t bwA,
                     int64_t *A);
@@ -69,7 +69,7 @@ void AdjustScaleShr(int32_t I, int32_t J, int32_t scale, int64_t bwA,
 void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
             int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp, int32_t shrA,
             int32_t shrB, int32_t shrC, int32_t demote,
-            bool subroutine = false);
+            bool subroutine = false, int task_number = 1);
 
 void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
                      int32_t J, int32_t bwA, int32_t bwB, int32_t bwC,
@@ -79,7 +79,7 @@ void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
 void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
                  int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp,
                  int32_t shrA, int32_t shrB, int32_t shrC, bool add,
-                 int32_t demote);
+                 int32_t demote, int task_number);
 
 void AddOrSubCir4D(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
                    int32_t shrB, int32_t shrC, bool add, int32_t demote,

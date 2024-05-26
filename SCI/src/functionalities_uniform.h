@@ -77,13 +77,13 @@ intType funcSSCons(int64_t x) {
 
 inline intType getFieldMsb(intType x) { return (x > (prime_mod / 2)); }
 
-void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len) {
+void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len, int task_number) {
   intType temp = 0;
   signedIntType ans = 0;
   if (party == SERVER) {
-    io->send_data(x, len * sizeof(intType));
+    io[task_number - 1]->send_data(x, len * sizeof(intType));
   } else if (party == CLIENT) {
-    io->recv_data(y, len * sizeof(intType));
+    io[task_number - 1]->recv_data(y, len * sizeof(intType));
     for (int i = 0; i < len; i++) {
       temp = y[i] + x[i];
       if (!isNativeRing) {
@@ -103,15 +103,15 @@ void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len) {
   return;
 }
 
-signedIntType funcReconstruct2PCCons(intType x, int revealParty) {
+signedIntType funcReconstruct2PCCons(intType x, int revealParty, int task_number) {
   assert(revealParty == 2 && "Reveal to only client is supported right now.");
   intType temp = 0;
   signedIntType ans = 0;
   static const uint64_t moduloMask = sci::all1Mask(bitlength);
   if (party == SERVER) {
-    io->send_data(&x, sizeof(intType));
+    io[task_number - 1]->send_data(&x, sizeof(intType));
   } else if (party == CLIENT) {
-    io->recv_data(&temp, sizeof(intType));
+    io[task_number - 1]->recv_data(&temp, sizeof(intType));
     temp = temp + x;
     if (!isNativeRing) {
       temp =
@@ -132,15 +132,15 @@ signedIntType div_floor(signedIntType a, signedIntType b) {
   return q - corr;
 }
 
-void funcTruncationIdeal(int size, intType *arr, int consSF) {
+void funcTruncationIdeal(int size, intType *arr, int consSF, int task_number) {
   if (party == SERVER) {
-    io->send_data(arr, sizeof(intType) * size);
+    io[task_number - 1]->send_data(arr, sizeof(intType) * size);
     for (int i = 0; i < size; i++) {
       arr[i] = 0;
     }
   } else {
     intType *arrOther = new intType[size];
-    io->recv_data(arrOther, sizeof(intType) * size);
+    io[task_number - 1]->recv_data(arrOther, sizeof(intType) * size);
     for (int i = 0; i < size; i++) {
       signedIntType ans;
       intType temp = arr[i] + arrOther[i];
@@ -160,12 +160,12 @@ void funcTruncationIdeal(int size, intType *arr, int consSF) {
   }
 }
 
-void printAllReconstructedValuesSigned(int size, intType *arr) {
+void printAllReconstructedValuesSigned(int size, intType *arr, int task_number) {
   if (party == SERVER) {
-    io->send_data(arr, sizeof(intType) * size);
+    io[task_number - 1]->send_data(arr, sizeof(intType) * size);
   } else {
     intType *arrOther = new intType[size];
-    io->recv_data(arrOther, sizeof(intType) * size);
+    io[task_number - 1]->recv_data(arrOther, sizeof(intType) * size);
     for (int i = 0; i < size; i++) {
       signedIntType ans;
       intType temp = arr[i] + arrOther[i];
@@ -180,13 +180,13 @@ void printAllReconstructedValuesSigned(int size, intType *arr) {
   }
 }
 
-intType funcSigendDivIdeal(intType x, uint32_t y) {
+intType funcSigendDivIdeal(intType x, uint32_t y, int task_number) {
   if (party == SERVER) {
-    io->send_data(&x, sizeof(intType));
+    io[task_number - 1]->send_data(&x, sizeof(intType));
     return 0;
   } else {
     intType temp;
-    io->recv_data(&temp, sizeof(intType));
+    io[task_number - 1]->recv_data(&temp, sizeof(intType));
     temp += x;
     return (((signedIntType)temp) / y);
   }
@@ -200,7 +200,7 @@ void funcReLUThread(int tid, intType *outp, intType *inp, int numRelu,
 }
 
 void funcMaxpoolThread(int tid, int rows, int cols, intType *inpArr,
-                       intType *maxi, intType *maxiIdx) {
+                       intType *maxi, intType *maxiIdx, int task_number) {
   maxpoolArr[tid]->funcMaxMPC(rows, cols, inpArr, maxi, maxiIdx);
 }
 
@@ -826,9 +826,11 @@ void funcAvgPoolTwoPowerRing(int curParty, sci::NetIO *curio,
 }
 
 void funcAvgPoolTwoPowerRingWrapper(int size, intType *inp, intType *outp,
-                                    intType divisor) {
+                                    intType divisor, int task_number) {
   assert(size % 8 == 0);
 #ifdef MULTITHREADED_TRUNC
+  int start = (task_number - 1) * num_threads;
+  
   std::thread truncThreads[num_threads];
   int chunk_size = (size / (8 * num_threads)) * 8;
   for (int i = 0; i < num_threads; i++) {
@@ -843,16 +845,16 @@ void funcAvgPoolTwoPowerRingWrapper(int size, intType *inp, intType *outp,
     if (i & 1)
       curParty = 3 - curParty;
     truncThreads[i] = std::thread(
-        funcAvgPoolTwoPowerRing, curParty, ioArr[i], otpackArr[i],
-        otInstanceArr[i], kkotInstanceArr[i], reluArr[i], prgInstanceArr[i],
+        funcAvgPoolTwoPowerRing, curParty, ioArr[i + start], otpackArr[i + start],
+        otInstanceArr[i + start], kkotInstanceArr[i + start], reluArr[i + start], prgInstanceArr[i + start],
         curSize, inp + offset, outp + offset, divisor);
   }
   for (int i = 0; i < num_threads; ++i) {
     truncThreads[i].join();
   }
 #else
-  funcAvgPoolTwoPowerRing(party, io, otpack, iknpOT, kkot, relu, prg128Instance,
-                          size, inp, outp, divisor);
+  funcAvgPoolTwoPowerRing(party, io[task_number - 1], otpack[task_number - 1], iknpOT[task_number - 1], kkot[task_number - 1], 
+                          relu[task_number - 1], prg128Instance[task_number - 1], size, inp, outp, divisor);
 #endif
 }
 
@@ -1140,9 +1142,11 @@ void funcFieldDiv(int curParty, sci::NetIO *curio,
 
 template <typename intType>
 void funcFieldDivWrapper(int size, intType *inp, intType *outp, intType divisor,
-                         uint8_t *msbShare) {
+                         uint8_t *msbShare, int task_number) {
   assert(size % 8 == 0);
 #ifdef MULTITHREADED_TRUNC
+  int start = (task_number - 1) * num_threads;
+
   std::thread truncThreads[num_threads];
   int chunk_size = (size / (8 * num_threads)) * 8;
   for (int i = 0; i < num_threads; i++) {
@@ -1160,16 +1164,16 @@ void funcFieldDivWrapper(int size, intType *inp, intType *outp, intType divisor,
     if (msbShare != nullptr)
       msbShareArg = msbShareArg + offset;
     truncThreads[i] = std::thread(
-        funcFieldDiv<intType>, curParty, ioArr[i], otpackArr[i],
-        otInstanceArr[i], kkotInstanceArr[i], reluArr[i], prgInstanceArr[i],
+        funcFieldDiv<intType>, curParty, ioArr[i + start], otpackArr[i + start],
+        otInstanceArr[i + start], kkotInstanceArr[i + start], reluArr[i + start], prgInstanceArr[i + start],
         curSize, inp + offset, outp + offset, divisor, msbShareArg);
   }
   for (int i = 0; i < num_threads; ++i) {
     truncThreads[i].join();
   }
 #else
-  funcFieldDiv<intType>(party, io, otpack, iknpOT, kkot, relu, prg128Instance,
-                        size, inp, outp, divisor, msbShare);
+  funcFieldDiv<intType>(party, io[task_number - 1], otpack[task_number - 1], iknpOT[task_number - 1], kkot[task_number - 1], 
+                        relu[task_number - 1], prg128Instance[task_number - 1], size, inp, outp, divisor, msbShare);
 #endif
 }
 

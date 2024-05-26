@@ -21,96 +21,96 @@ SOFTWARE.
 
 #include "globals.h"
 
-sci::NetIO *io;
-sci::OTPack<sci::NetIO> *otpack;
+sci::NetIO *io[MAX_BATCH];
+sci::OTPack<sci::NetIO> *otpack[MAX_BATCH];
 
 #ifdef SCI_OT
-LinearOT *mult;
-AuxProtocols *aux;
-Truncation *truncation;
-XTProtocol *xt;
-MathFunctions *math;
+LinearOT *mult[MAX_BATCH];
+AuxProtocols *aux[MAX_BATCH];
+Truncation *truncation[MAX_BATCH];
+XTProtocol *xt[MAX_BATCH];
+MathFunctions *math[MAX_BATCH];
 #endif
-ArgMaxProtocol<sci::NetIO, intType> *argmax;
-ReLUProtocol<sci::NetIO, intType> *relu;
-MaxPoolProtocol<sci::NetIO, intType> *maxpool;
+ArgMaxProtocol<sci::NetIO, intType> *argmax[MAX_BATCH];
+ReLUProtocol<sci::NetIO, intType> *relu[MAX_BATCH];
+MaxPoolProtocol<sci::NetIO, intType> *maxpool[MAX_BATCH];
 // Additional classes for Athos
 #ifdef SCI_OT
 MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform;
 #endif
 
 #ifdef SCI_HE
-FCField *he_fc;
-ElemWiseProdField *he_prod;
+FCField *he_fc[MAX_BATCH];
+ElemWiseProdField *he_prod[MAX_BATCH];
 #endif
 
 #if USE_CHEETAH
-gemini::CheetahLinear *cheetah_linear;
+gemini::CheetahLinear *cheetah_linear[MAX_BATCH];
 bool kIsSharedInput;
 #elif defined(SCI_HE)
-ConvField *he_conv;
+ConvField *he_conv[MAX_BATCH];
 #endif
 
-sci::IKNP<sci::NetIO> *iknpOT;
-sci::IKNP<sci::NetIO> *iknpOTRoleReversed;
-sci::KKOT<sci::NetIO> *kkot;
-sci::PRG128 *prg128Instance;
+sci::IKNP<sci::NetIO> *iknpOT[MAX_BATCH];
+sci::IKNP<sci::NetIO> *iknpOTRoleReversed[MAX_BATCH];
+sci::KKOT<sci::NetIO> *kkot[MAX_BATCH];
+sci::PRG128 *prg128Instance[MAX_BATCH];
 
-sci::NetIO *ioArr[MAX_THREADS];
-sci::OTPack<sci::NetIO> *otpackArr[MAX_THREADS];
+sci::NetIO *ioArr[MAX_THREADS * MAX_BATCH];
+sci::OTPack<sci::NetIO> *otpackArr[MAX_THREADS * MAX_BATCH];
 #ifdef SCI_OT
-LinearOT *multArr[MAX_THREADS];
-AuxProtocols *auxArr[MAX_THREADS];
-Truncation *truncationArr[MAX_THREADS];
-XTProtocol *xtArr[MAX_THREADS];
-MathFunctions *mathArr[MAX_THREADS];
+LinearOT *multArr[MAX_THREADS * MAX_BATCH];
+AuxProtocols *auxArr[MAX_THREADS * MAX_BATCH];
+Truncation *truncationArr[MAX_THREADS * MAX_BATCH];
+XTProtocol *xtArr[MAX_THREADS * MAX_BATCHS];
+MathFunctions *mathArr[MAX_THREADS * MAX_BATCH];
 #endif
-ReLUProtocol<sci::NetIO, intType> *reluArr[MAX_THREADS];
-MaxPoolProtocol<sci::NetIO, intType> *maxpoolArr[MAX_THREADS];
+ReLUProtocol<sci::NetIO, intType> *reluArr[MAX_THREADS * MAX_BATCH];
+MaxPoolProtocol<sci::NetIO, intType> *maxpoolArr[MAX_THREADS * MAX_BATCH];
 // Additional classes for Athos
 #ifdef SCI_OT
-MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniformArr[MAX_THREADS];
+MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniformArr[MAX_THREADS * MAX_BATCH];
 #endif
-sci::IKNP<sci::NetIO> *otInstanceArr[MAX_THREADS];
-sci::KKOT<sci::NetIO> *kkotInstanceArr[MAX_THREADS];
-sci::PRG128 *prgInstanceArr[MAX_THREADS];
+sci::IKNP<sci::NetIO> *otInstanceArr[MAX_THREADS * MAX_BATCH];
+sci::KKOT<sci::NetIO> *kkotInstanceArr[MAX_THREADS * MAX_BATCH];
+sci::PRG128 *prgInstanceArr[MAX_THREADS * MAX_BATCH];
 
-std::chrono::time_point<std::chrono::high_resolution_clock> start_time;
-uint64_t comm_threads[MAX_THREADS];
-uint64_t num_rounds;
+std::chrono::time_point<std::chrono::high_resolution_clock> start_time[MAX_BATCH];
+uint64_t comm_threads[MAX_THREADS * MAX_BATCH];
+uint64_t num_rounds[MAX_BATCH];
 
 #ifdef LOG_LAYERWISE
-uint64_t ConvTimeInMilliSec = 0;
-uint64_t MatAddTimeInMilliSec = 0;
-uint64_t BatchNormInMilliSec = 0;
-uint64_t TruncationTimeInMilliSec = 0;
-uint64_t ReluTimeInMilliSec = 0;
-uint64_t MaxpoolTimeInMilliSec = 0;
-uint64_t AvgpoolTimeInMilliSec = 0;
-uint64_t MatMulTimeInMilliSec = 0;
-uint64_t MatAddBroadCastTimeInMilliSec = 0;
-uint64_t MulCirTimeInMilliSec = 0;
-uint64_t ScalarMulTimeInMilliSec = 0;
-uint64_t SigmoidTimeInMilliSec = 0;
-uint64_t TanhTimeInMilliSec = 0;
-uint64_t SqrtTimeInMilliSec = 0;
-uint64_t NormaliseL2TimeInMilliSec = 0;
-uint64_t ArgMaxTimeInMilliSec = 0;
+uint64_t ConvTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t MatAddTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t BatchNormInMilliSec[MAX_BATCH] = {0};
+uint64_t TruncationTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t ReluTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t MaxpoolTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t AvgpoolTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t MatMulTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t MatAddBroadCastTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t MulCirTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t ScalarMulTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t SigmoidTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t TanhTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t SqrtTimeInMilliSec[MAX_BATCH] = {0};
+uint64_t NormaliseL2TimeInMilliSec[MAX_BATCH] = {0};
+uint64_t ArgMaxTimeInMilliSec[MAX_BATCH] = {0};
 
-uint64_t ConvCommSent = 0;
-uint64_t MatAddCommSent = 0;
-uint64_t BatchNormCommSent = 0;
-uint64_t TruncationCommSent = 0;
-uint64_t ReluCommSent = 0;
-uint64_t MaxpoolCommSent = 0;
-uint64_t AvgpoolCommSent = 0;
-uint64_t MatMulCommSent = 0;
-uint64_t MatAddBroadCastCommSent = 0;
-uint64_t MulCirCommSent = 0;
-uint64_t ScalarMulCommSent = 0;
-uint64_t SigmoidCommSent = 0;
-uint64_t TanhCommSent = 0;
-uint64_t SqrtCommSent = 0;
-uint64_t NormaliseL2CommSent = 0;
-uint64_t ArgMaxCommSent = 0;
+uint64_t ConvCommSent[MAX_BATCH] = {0};
+uint64_t MatAddCommSent[MAX_BATCH] = {0};
+uint64_t BatchNormCommSent[MAX_BATCH] = {0};
+uint64_t TruncationCommSent[MAX_BATCH] = {0};
+uint64_t ReluCommSent[MAX_BATCH] = {0};
+uint64_t MaxpoolCommSent[MAX_BATCH] = {0};
+uint64_t AvgpoolCommSent[MAX_BATCH] = {0};
+uint64_t MatMulCommSent[MAX_BATCH] = {0};
+uint64_t MatAddBroadCastCommSent[MAX_BATCH] = {0};
+uint64_t MulCirCommSent[MAX_BATCH] = {0};
+uint64_t ScalarMulCommSent[MAX_BATCH] = {0};
+uint64_t SigmoidCommSent[MAX_BATCH] = {0};
+uint64_t TanhCommSent[MAX_BATCH] = {0};
+uint64_t SqrtCommSent[MAX_BATCH] = {0};
+uint64_t NormaliseL2CommSent[MAX_BATCH] = {0};
+uint64_t ArgMaxCommSent[MAX_BATCH] = {0};
 #endif

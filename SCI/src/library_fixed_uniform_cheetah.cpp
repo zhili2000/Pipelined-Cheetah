@@ -214,7 +214,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
                    signedIntType zPadHRight, signedIntType zPadWLeft,
                    signedIntType zPadWRight, signedIntType strideH,
                    signedIntType strideW, intType *inputArr, intType *filterArr,
-                   intType *outArr) {
+                   intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -266,7 +266,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
       zPadHRight, zPadWLeft, zPadWRight);
 
 #ifdef LOG_LAYERWISE
-  const int64_t io_counter = cheetah_linear->io_counter();
+  const int64_t io_counter = cheetah_linear[task_number - 1]->io_counter();
 #endif
 
   for (int i = 0; i < N; ++i) {
@@ -281,7 +281,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
     }
 
     gemini::Tensor<intType> out_tensor;
-    cheetah_linear->conv2d(image, filters, meta, out_tensor);
+    cheetah_linear[task_number - 1]->conv2d(image, filters, meta, out_tensor);
 
     for (int j = 0; j < newH; j++) {
       for (int k = 0; k < newW; k++) {
@@ -295,15 +295,15 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ConvTimeInMilliSec += temp;
-  const int64_t nbytes_sent = cheetah_linear->io_counter() - io_counter;
+  ConvTimeInMilliSec[task_number - 1] += temp;
+  const int64_t nbytes_sent = cheetah_linear[task_number - 1]->io_counter() - io_counter;
   std::cout << "Time in sec for current conv = [" << (temp / 1000.0)
             << "] sent [" << (nbytes_sent / 1024. / 1024.) << "] MB"
             << std::endl;
 
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ConvCommSent += curComm;
+  ConvCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
