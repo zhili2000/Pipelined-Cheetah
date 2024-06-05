@@ -93,16 +93,16 @@ void finalize(int task_number) {
   }
 #if USE_CHEETAH
   // TODO(juhou): fix pre_ot_file
-  delete otpackArr[0];
+  delete otpackArr[start];
 #endif
 
 #if USE_CHEETAH
-  delete cheetah_linear;
+  delete cheetah_linear[task_number - 1];
 #endif
 }
 
-void reconstruct(int64_t *A, int64_t *B, int32_t I, int32_t J, int bwA) {
-  reconstruct(I * J, (uint64_t *)A, (uint64_t *)B, bwA);
+void reconstruct(int64_t *A, int64_t *B, int32_t I, int32_t J, int bwA, int task_number) {
+  reconstruct(I * J, (uint64_t *)A, (uint64_t *)B, bwA, task_number);
   for (int i = 0; i < I * J; i++) {
     B[i] = signed_val((uint64_t)B[i], bwA);
   }
@@ -148,8 +148,8 @@ void typecast_from_uint64(uint64_t *A64, int64_t *A, int32_t I, int32_t J,
   return;
 }
 
-void reconstruct(uint64_t *A, int64_t *B, int32_t I, int32_t J, int bwA) {
-  reconstruct(I * J, A, (uint64_t *)B, bwA);
+void reconstruct(uint64_t *A, int64_t *B, int32_t I, int32_t J, int bwA, int task_number) {
+  reconstruct(I * J, A, (uint64_t *)B, bwA, task_number);
   for (int i = 0; i < I * J; i++) {
     B[i] = signed_val((uint64_t)B[i], bwA);
   }
@@ -182,7 +182,7 @@ void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 
 void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
             int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp, int32_t shrA,
-            int32_t shrB, int32_t shrC, int32_t demote, bool subroutine, int task_number) {
+            int32_t shrB, int32_t shrC, int32_t demote, int task_number, bool subroutine) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -241,7 +241,7 @@ void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
 void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
                      int32_t J, int32_t bwA, int32_t bwB, int32_t bwC,
                      int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t shrC,
-                     int32_t demote, bool scalar_A, int task_number) {
+                     int32_t demote, int task_number, bool scalar_A) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -261,7 +261,7 @@ void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
 #endif
     }
     MatAdd(tmpA, B, C, I, J, bwTemp, bwB, bwC, bwTemp, 0, shrB + shrC, 0,
-           demote, true, task_number);
+           demote, task_number, true);
 
     delete[] tmpA;
   } else {
@@ -276,7 +276,7 @@ void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
 #endif
     }
     MatAdd(A, tmpB, C, I, J, bwA, bwTemp, bwC, bwTemp, shrA + shrC, 0, 0,
-           demote, true, task_number);
+           demote, task_number, true);
 
     delete[] tmpB;
   }
@@ -304,11 +304,11 @@ void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
 
   uint64_t *tmpB = new uint64_t[dim];
 
-  xt->s_extend(J, B, tmpB, bwB, bwTemp);
+  xt[task_number - 1]->s_extend(J, B, tmpB, bwB, bwTemp);
 #ifdef DIV_RESCALING
-  truncation->div_pow2(J, tmpB, B, shrB + shrC, bwTemp, true);
+  truncation[task_number - 1]->div_pow2(J, tmpB, B, shrB + shrC, bwTemp, true);
 #else
-  truncation->truncate(J, tmpB, B, shrB + shrC, bwTemp, true);
+  truncation[task_number - 1]->truncate(J, tmpB, B, shrB + shrC, bwTemp, true);
 #endif
   for (int i = 0; i < I; i++) {
     for (int j = 0; j < J; j++) {
@@ -320,24 +320,24 @@ void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
     }
   }
   MatAdd(A, tmpB, C, I, J, bwA, bwTemp, bwC, bwTemp, shrA + shrC, 0, 0, demote,
-         true, task_number);
+         task_number, true);
 
   delete[] tmpB;
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MatAddTimeInMilliSec += temp;
+  MatAddTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current AddOrSubCir = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatAddCommSent += curComm;
+  MatAddCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void ScalarMul(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
                int32_t bwA, int32_t bwB, int32_t bwTemp, int32_t bwC,
-               int32_t shrA, int32_t shrB, int32_t demote) {
+               int32_t shrA, int32_t shrB, int32_t demote, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -347,20 +347,20 @@ void ScalarMul(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
   uint64_t maskTemp = (bwTemp == 64 ? -1 : ((1ULL << bwTemp) - 1));
   uint64_t *tmpC = new uint64_t[I * J];
 
-  xt->s_extend(I * J, B, tmpC, bwB, bwTemp);
+  xt[task_number - 1]->s_extend(I * J, B, tmpC, bwB, bwTemp);
   for (int i = 0; i < I * J; i++) {
     C[i] = (tmpC[i] * A[0]) & maskTemp;
   }
 #ifdef DIV_RESCALING
-  truncation->div_pow2(I * J, C, tmpC, shift, bwTemp, true);
-  aux->reduce(I * J, tmpC, C, bwTemp, bwC);
+  truncation[task_number - 1]->div_pow2(I * J, C, tmpC, shift, bwTemp, true);
+  aux[task_number - 1]->reduce(I * J, tmpC, C, bwTemp, bwC);
 #else
   if ((bwTemp - bwC) >= shift) {
-    truncation->truncate_and_reduce(I * J, C, tmpC, shift, bwTemp);
-    aux->reduce(I * J, tmpC, C, bwTemp - shift, bwC);
+    truncation[task_number - 1]->truncate_and_reduce(I * J, C, tmpC, shift, bwTemp);
+    aux[task_number - 1]->reduce(I * J, tmpC, C, bwTemp - shift, bwC);
   } else {
-    truncation->truncate(I * J, C, tmpC, shift, bwTemp, true);
-    aux->reduce(I * J, tmpC, C, bwTemp, bwC);
+    truncation[task_number - 1]->truncate(I * J, C, tmpC, shift, bwTemp, true);
+    aux[task_number - 1]->reduce(I * J, tmpC, C, bwTemp, bwC);
   }
 #endif
 
@@ -370,32 +370,34 @@ void ScalarMul(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
   auto temp = TIMER_TILL_NOW;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ScalarMulTimeInMilliSec += temp;
+  ScalarMulTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current ScalarMul = " << (temp / 1000.0)
             << std::endl;
-  ScalarMulCommSent += curComm;
+  ScalarMulCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void MulCir_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
                    int32_t dim, int32_t bwA, int32_t bwB, int32_t bwC,
-                   int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t demote) {
+                   int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t demote, int task_number) {
   int32_t shift = shrA + shrB + demote;
 
   uint64_t *tmpC = new uint64_t[dim];
 
-  multArr[tid]->hadamard_product(dim, A, B, C, bwA, bwB, bwA + bwB, true, true,
+  int start = (task_number - 1) * num_threads;
+
+  multArr[tid + start]->hadamard_product(dim, A, B, C, bwA, bwB, bwA + bwB, true, true,
                                  MultMode::None);
 #ifdef DIV_RESCALING
-  truncationArr[tid]->div_pow2(dim, C, tmpC, shift, bwA + bwB, true);
-  auxArr[tid]->reduce(dim, tmpC, C, bwA + bwB, bwC);
+  truncationArr[tid + start]->div_pow2(dim, C, tmpC, shift, bwA + bwB, true);
+  auxArr[tid + start]->reduce(dim, tmpC, C, bwA + bwB, bwC);
 #else
   if ((bwA + bwB - bwC) >= shift) {
-    truncationArr[tid]->truncate_and_reduce(dim, C, tmpC, shift, bwA + bwB);
-    auxArr[tid]->reduce(dim, tmpC, C, bwA + bwB - shift, bwC);
+    truncationArr[tid + start]->truncate_and_reduce(dim, C, tmpC, shift, bwA + bwB);
+    auxArr[tid + start]->reduce(dim, tmpC, C, bwA + bwB - shift, bwC);
   } else {
-    truncationArr[tid]->truncate(dim, C, tmpC, shift, bwA + bwB, true);
-    auxArr[tid]->reduce(dim, tmpC, C, bwA + bwB, bwC);
+    truncationArr[tid + start]->truncate(dim, C, tmpC, shift, bwA + bwB, true);
+    auxArr[tid + start]->reduce(dim, tmpC, C, bwA + bwB, bwC);
   }
 #endif
   delete[] tmpC;
@@ -403,7 +405,7 @@ void MulCir_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
 
 void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
             int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, uint64_t *A,
-            uint64_t *B, uint64_t *C) {
+            uint64_t *B, uint64_t *C, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". MulCir (" << I << " x " << J << ")" << std::endl;
   INIT_TIMER;
@@ -424,7 +426,7 @@ void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
   for (int i = 0; i < lnum_threads; i++) {
     threads[i] = std::thread(MulCir_thread, i, A + offset, B + offset,
                              C + offset, chunks_per_thread[i], bwA, bwB, bwC,
-                             bwTemp, shiftA, shiftB, shift_demote);
+                             bwTemp, shiftA, shiftB, shift_demote, task_number);
     offset += chunks_per_thread[i];
   }
   for (int i = 0; i < lnum_threads; ++i) {
@@ -435,10 +437,10 @@ void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
   auto temp = TIMER_TILL_NOW;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MulCirTimeInMilliSec += temp;
+  MulCirTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current MulCir = " << (temp / 1000.0)
             << std::endl;
-  MulCirCommSent += curComm;
+  MulCirCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -477,6 +479,7 @@ void MatMul_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
                    int32_t I, int32_t K, int32_t J, int32_t bwA, int32_t bwB,
                    int32_t bwC, int32_t bwTemp, int32_t shrA, int32_t shrB,
                    int32_t H1, int32_t demote,
+                   int task_number,
                    MultMode mode = MultMode::Alice_has_B) {
   assert(bwA + bwB >= bwC);
   int32_t depth = ceil(log2(K));
@@ -485,25 +488,27 @@ void MatMul_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
   uint64_t maskC = (bwC == 64 ? -1 : ((1ULL << bwC) - 1));
   uint64_t *tmpC = new uint64_t[I * J];
 
-  multArr[tid]->matrix_multiplication(I, K, J, A, B, C, bwA, bwB, bwA + bwB,
+  int start = (task_number - 1) * num_threads;
+
+  multArr[tid + start]->matrix_multiplication(I, K, J, A, B, C, bwA, bwB, bwA + bwB,
                                       true, true, true, mode);
   if (shift <= 0) {
     for (int i = 0; i < I * J; i++) {
       tmpC[i] = (C[i] << (-1 * shift)) & maskC;
     }
-    auxArr[tid]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
+    auxArr[tid + start]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
 #ifdef DIV_RESCALING
   } else {
-    truncationArr[tid]->div_pow2(I * J, C, tmpC, shift, bwA + bwB, true);
-    auxArr[tid]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
+    truncationArr[tid + start]->div_pow2(I * J, C, tmpC, shift, bwA + bwB, true);
+    auxArr[tid + start]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
   }
 #else
   } else if ((bwA + bwB - bwC) >= shift) {
-    truncationArr[tid]->truncate_and_reduce(I * J, C, tmpC, shift, bwA + bwB);
-    auxArr[tid]->reduce(I * J, tmpC, C, bwA + bwB - shift, bwC);
+    truncationArr[tid + start]->truncate_and_reduce(I * J, C, tmpC, shift, bwA + bwB);
+    auxArr[tid + start]->reduce(I * J, tmpC, C, bwA + bwB - shift, bwC);
   } else {
-    truncationArr[tid]->truncate(I * J, C, tmpC, shift, bwA + bwB, true);
-    auxArr[tid]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
+    truncationArr[tid + start]->truncate(I * J, C, tmpC, shift, bwA + bwB, true);
+    auxArr[tid + start]->reduce(I * J, tmpC, C, bwA + bwB, bwC);
   }
 #endif
 
@@ -513,7 +518,7 @@ void MatMul_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
 void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
             int64_t H1, int64_t H2, int64_t demote, int32_t bwA, int32_t bwB,
             int32_t bwTemp, int32_t bwC, uint64_t *A, uint64_t *B, uint64_t *C,
-            uint64_t *tmp, bool verbose) {
+            uint64_t *tmp, int task_number, bool verbose) {
 #ifdef LOG_LAYERWISE
   if (verbose)
     std::cout << ctr++ << ". MatMul (" << I << " x " << K << " x " << J << ")"
@@ -550,7 +555,7 @@ void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
     threads[i] =
         std::thread(MatMul_thread, i, A + (K * offset), B, C + (J * offset),
                     chunks_per_thread[i], K, J, bwA, bwB, bwC, bwTemp, shiftA,
-                    shiftB, H1, shift_demote, mode);
+                    shiftB, H1, shift_demote, task_number, mode);
     offset += chunks_per_thread[i];
   }
   for (int i = 0; i < lnum_threads; ++i) {
@@ -564,8 +569,8 @@ void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
   auto temp = TIMER_TILL_NOW;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatMulCommSent += curComm;
-  MatMulTimeInMilliSec += temp;
+  MatMulCommSent[task_number - 1] += curComm;
+  MatMulTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current MatMul = " << (temp / 1000.0)
             << std::endl;
 #endif
@@ -574,7 +579,7 @@ void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
 void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
             int64_t H1, int64_t H2, int64_t demote, int32_t bwA, int32_t bwB,
             int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B, int64_t *C,
-            int64_t *tmp, bool verbose) {
+            int64_t *tmp, int task_number, bool verbose) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatMul(A, B, C, tmp, I, K, J, shrA, shrB, H1, H2, demote);
   for (int i = 0; i < I * J; i++) {
@@ -590,7 +595,7 @@ void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
   uint64_t *tmpC = new uint64_t[I * J];
 
   MatMul(I, K, J, shrA, shrB, H1, H2, demote, bwA, bwB, bwTemp, bwC, tmpA, tmpB,
-         tmpC, nullptr, verbose);
+         tmpC, nullptr, task_number, verbose);
 
   typecast_from_uint64(tmpC, C, I, J, bwC);
 
@@ -650,12 +655,13 @@ void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
 }
 
 void Sigmoid_thread(int32_t tid, uint64_t *A, uint64_t *B, int32_t dim,
-                    int32_t bwA, int32_t bwB, int32_t sA, int32_t sB) {
-  mathArr[tid]->sigmoid(dim, A, B, bwA, bwB, sA, sB);
+                    int32_t bwA, int32_t bwB, int32_t sA, int32_t sB, int task_number) {
+  int start = (task_number - 1) * num_threads;
+  mathArr[tid + start]->sigmoid(dim, A, B, bwA, bwB, sA, sB);
 }
 
 void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-             int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B) {
+             int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". Sigmoid (" << I << " x " << J << ")" << std::endl;
   INIT_TIMER;
@@ -673,7 +679,7 @@ void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   std::thread threads[lnum_threads];
   for (int i = 0; i < lnum_threads; i++) {
     threads[i] = std::thread(Sigmoid_thread, i, A + offset, B + offset,
-                             chunks_per_thread[i], bwA, bwB, s_A, s_B);
+                             chunks_per_thread[i], bwA, bwB, s_A, s_B, task_number);
     offset += chunks_per_thread[i];
   }
   for (int i = 0; i < lnum_threads; ++i) {
@@ -682,12 +688,12 @@ void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  SigmoidTimeInMilliSec += temp;
+  SigmoidTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current Sigmoid = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  SigmoidCommSent += curComm;
+  SigmoidCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -723,12 +729,13 @@ void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 }
 
 void TanH_thread(int32_t tid, uint64_t *A, uint64_t *B, int32_t dim,
-                 int32_t bwA, int32_t bwB, int32_t sA, int32_t sB) {
-  mathArr[tid]->tanh(dim, A, B, bwA, bwB, sA, sB);
+                 int32_t bwA, int32_t bwB, int32_t sA, int32_t sB, int task_number) {
+  int start = (task_number - 1) * num_threads;
+  mathArr[tid + start]->tanh(dim, A, B, bwA, bwB, sA, sB);
 }
 
 void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B) {
+          int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". TanH (" << I << " x " << J << ")" << std::endl;
   INIT_TIMER;
@@ -747,7 +754,7 @@ void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   std::thread threads[lnum_threads];
   for (int i = 0; i < lnum_threads; i++) {
     threads[i] = std::thread(TanH_thread, i, A + offset, B + offset,
-                             chunks_per_thread[i], bwA, bwB, s_A, s_B);
+                             chunks_per_thread[i], bwA, bwB, s_A, s_B, task_number);
     offset += chunks_per_thread[i];
   }
   for (int i = 0; i < lnum_threads; ++i) {
@@ -755,12 +762,12 @@ void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   }
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  TanhTimeInMilliSec += temp;
+  TanhTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current TanH = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  TanhCommSent += curComm;
+  TanhCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -794,8 +801,9 @@ void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 
 void Sqrt_thread(int32_t tid, uint64_t *A, uint64_t *B, int32_t dim,
                  int32_t bwA, int32_t bwB, int32_t sA, int32_t sB,
-                 bool inverse) {
-  mathArr[tid]->sqrt(dim, A, B, bwA, bwB, sA, sB, inverse);
+                 bool inverse, int task_number) {
+  int start = (task_number - 1) * num_threads;
+  mathArr[tid + start]->sqrt(dim, A, B, bwA, bwB, sA, sB, inverse);
 }
 
 void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
@@ -818,7 +826,7 @@ void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   std::thread threads[lnum_threads];
   for (int i = 0; i < lnum_threads; i++) {
     threads[i] = std::thread(Sqrt_thread, i, A + offset, B + offset,
-                             chunks_per_thread[i], bwA, bwB, s_A, s_B, inverse);
+                             chunks_per_thread[i], bwA, bwB, s_A, s_B, inverse, task_number);
     offset += chunks_per_thread[i];
   }
   for (int i = 0; i < lnum_threads; ++i) {
@@ -862,56 +870,56 @@ void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 }
 
 void Exp(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-         int32_t bwB, int32_t sA, int32_t sB) {
-  math->lookup_table_exp(I * J, A, B, bwA, bwB, sA, sB);
+         int32_t bwB, int32_t sA, int32_t sB, int task_number) {
+  math[task_number - 1]->lookup_table_exp(I * J, A, B, bwA, bwB, sA, sB);
 }
 
 void Div(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
          int32_t bwA, int32_t bwB, int32_t bwC, int32_t sA, int32_t sB,
-         int32_t sC) {
-  math->div(I * J, A, B, C, bwA, bwB, bwC, sA, sB, sC, true, false);
+         int32_t sC, int task_number) {
+  math[task_number - 1]->div(I * J, A, B, C, bwA, bwB, bwC, sA, sB, sC, true, false);
 }
 
 void ArgMax(uint64_t *A, int32_t I, int32_t J, int32_t bwA, int32_t bw_index,
-            uint64_t *index) {
+            uint64_t *index, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
 #endif
-  argmax = new ArgMaxProtocol<sci::NetIO, uint64_t>(party, RING, io, bwA, MILL_PARAM,
-                                               0, otpack);
+  argmax[task_number - 1] = new ArgMaxProtocol<sci::NetIO, uint64_t>(party, RING, io[task_number - 1], bwA, MILL_PARAM,
+                                               0, otpack[task_number - 1]);
 
-  argmax->ArgMaxMPC(I * J, A, index, false, nullptr);
+  argmax[task_number - 1]->ArgMaxMPC(I * J, A, index, false, nullptr);
   if (bw_index > bwA) {
-    xt->z_extend(1, index, index, bwA, bw_index);
+    xt[task_number - 1]->z_extend(1, index, index, bwA, bw_index);
   }
 
   delete argmax;
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ArgMaxTimeInMilliSec += temp;
+  ArgMaxTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current ArgMax = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ArgMaxCommSent += curComm;
+  ArgMaxCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void MaxPool2D(uint64_t *A, int32_t I, int32_t J, int32_t bwA, int32_t bwB,
-               uint64_t *B) {
+               uint64_t *B, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
 #endif
 
-  maxpool = new MaxPoolProtocol<sci::NetIO, uint64_t>(party, RING, io, bwA,
-                                                 MILL_PARAM, 0, otpack);
+  maxpool[task_number - 1] = new MaxPoolProtocol<sci::NetIO, uint64_t>(party, RING, io[task_number - 1], bwA,
+                                                 MILL_PARAM, 0, otpack[task_number - 1]);
   uint64_t *B_temp = new uint64_t[I];
-  maxpool->funcMaxMPC(I, J, A, B_temp, nullptr);
+  maxpool[task_number - 1]->funcMaxMPC(I, J, A, B_temp, nullptr);
   if (bwB > bwA) {
-    xt->z_extend(I, B_temp, B, bwA, bwB);
+    xt[task_number - 1]->z_extend(I, B_temp, B, bwA, bwB);
   } else {
     memcpy(B, B_temp, sizeof(uint64_t) * I);
   }
@@ -920,12 +928,12 @@ void MaxPool2D(uint64_t *A, int32_t I, int32_t J, int32_t bwA, int32_t bwB,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MaxpoolTimeInMilliSec += temp;
+  MaxpoolTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current MaxPool = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MaxpoolCommSent += curComm;
+  MaxpoolCommSent[task_number - 1] += curComm;
 #endif
 }
 
@@ -934,14 +942,17 @@ void GroupedMatMul_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
                           int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp,
                           int32_t shrA, int32_t shrB, int32_t H1, int32_t H2,
                           int32_t demote,
+                          int task_number,
                           MultMode mode = MultMode::Alice_has_A) {
   // assert(bwA + bwB >= bwC);
   int32_t depth = H1 + H2;
   int32_t shift = shrA + shrB + demote - H2;
   int out_size = G * I * J;
 
+  int start = (task_number - 1) * num_threads;
+
   for (int32_t g = 0; g < G; g++) {
-    multArr[tid]->matrix_multiplication(I, K, J, A + (g * I * K),
+    multArr[tid + start]->matrix_multiplication(I, K, J, A + (g * I * K),
                                         B + (g * K * J), C + (g * I * J), bwA,
                                         bwB, bwA + bwB, true, true, true, mode);
   }
@@ -951,37 +962,37 @@ void GroupedMatMul_thread(int32_t tid, uint64_t *A, uint64_t *B, uint64_t *C,
 
   if (shift <= 0) {
     if (bwA + bwB < bwC) {
-      xtArr[tid]->s_extend(out_size, C, tmpC, bwA + bwB, bwC);
+      xtArr[tid + start]->s_extend(out_size, C, tmpC, bwA + bwB, bwC);
     } else {
-      auxArr[tid]->reduce(out_size, C, tmpC, bwA + bwB, bwC);
+      auxArr[tid + start]->reduce(out_size, C, tmpC, bwA + bwB, bwC);
     }
     for (int i = 0; i < out_size; i++) {
       C[i] = (tmpC[i] * (1ULL << (-1 * shift))) & maskC;
     }
 #ifdef DIV_RESCALING
   } else {
-    truncationArr[tid]->div_pow2(out_size, C, tmpC, shift, bwA + bwB, true);
+    truncationArr[tid + start]->div_pow2(out_size, C, tmpC, shift, bwA + bwB, true);
     if (bwA + bwB < bwC) {
-      xtArr[tid]->s_extend(out_size, tmpC, C, bwA + bwB, bwC);
+      xtArr[tid + start]->s_extend(out_size, tmpC, C, bwA + bwB, bwC);
     } else {
-      auxArr[tid]->reduce(out_size, tmpC, C, bwA + bwB, bwC);
+      auxArr[tid + start]->reduce(out_size, tmpC, C, bwA + bwB, bwC);
     }
   }
 #else
   } else if ((bwA + bwB - bwC) >= shift) {
-    truncationArr[tid]->truncate_and_reduce(out_size, C, tmpC, shift,
+    truncationArr[tid + start]->truncate_and_reduce(out_size, C, tmpC, shift,
                                             bwA + bwB);
     if (bwA + bwB < bwC) {
-      xtArr[tid]->s_extend(out_size, tmpC, C, bwA + bwB - shift, bwC);
+      xtArr[tid + start]->s_extend(out_size, tmpC, C, bwA + bwB - shift, bwC);
     } else {
-      auxArr[tid]->reduce(out_size, tmpC, C, bwA + bwB - shift, bwC);
+      auxArr[tid + start]->reduce(out_size, tmpC, C, bwA + bwB - shift, bwC);
     }
   } else {
-    truncationArr[tid]->truncate(out_size, C, tmpC, shift, bwA + bwB, true);
+    truncationArr[tid + start]->truncate(out_size, C, tmpC, shift, bwA + bwB, true);
     if (bwA + bwB < bwC) {
-      xtArr[tid]->s_extend(out_size, tmpC, C, bwA + bwB, bwC);
+      xtArr[tid + start]->s_extend(out_size, tmpC, C, bwA + bwB, bwC);
     } else {
-      auxArr[tid]->reduce(out_size, tmpC, C, bwA + bwB, bwC);
+      auxArr[tid + start]->reduce(out_size, tmpC, C, bwA + bwB, bwC);
     }
   }
 #endif
@@ -996,7 +1007,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WDL, int32_t G, int32_t bwA, int32_t bwB, int32_t bwC,
                  int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t H1,
                  int32_t H2, int32_t demote, uint64_t *A, uint64_t *B,
-                 uint64_t *C) {
+                 uint64_t *C, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". Convolution (I = (" << N << "x" << H << "x" << W
             << "x" << CIN << "), F = (" << G << "x" << HF << "x" << WF << "x"
@@ -1058,13 +1069,13 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
           Image + (offset * reshaped_image_size),
           Output + (offset * COUTF * N * HOUT * WOUT), COUTF, HF * WF * CINF,
           N * HOUT * WOUT, chunks_per_thread[i], bwB, bwA, bwC, bwTemp, shiftB,
-          shiftA, H1, H2, shift_demote, mode);
+          shiftA, H1, H2, shift_demote, task_number, mode);
     } else {
       threads[i] = std::thread(
           GroupedMatMul_thread, i, Filter + (offset * HF * WF * CINF), Image,
           Output + (offset * N * HOUT * WOUT), chunks_per_thread[i],
           HF * WF * CINF, N * HOUT * WOUT, 1, bwB, bwA, bwC, bwTemp, shiftB,
-          shiftA, H1, H2, shift_demote, mode);
+          shiftA, H1, H2, shift_demote, task_number, mode);
     }
     offset += chunks_per_thread[i];
   }
@@ -1084,8 +1095,8 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
   auto temp = TIMER_TILL_NOW;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ConvCommSent += curComm;
-  ConvTimeInMilliSec += temp;
+  ConvCommSent[task_number - 1] += curComm;
+  ConvTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current Conv = " << (temp / 1000.0)
             << std::endl;
 #endif
@@ -1130,7 +1141,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
 }
 
 void ReLU(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-          int32_t bwB, uint64_t six, int32_t div) {
+          int32_t bwB, uint64_t six, int32_t div, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -1140,18 +1151,18 @@ void ReLU(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 
   int32_t dim = I * J;
   uint64_t *tmpB = new uint64_t[dim];
-  math->ReLU(dim, A, tmpB, bwA, six);
+  math[task_number - 1]->ReLU(dim, A, tmpB, bwA, six);
 
 #ifdef DIV_RESCALING
-  truncation->div_pow2(dim, tmpB, B, div, bwA, true);
-  aux->reduce(dim, B, B, bwA, bwB);
+  truncation[task_number - 1]->div_pow2(dim, tmpB, B, div, bwA, true);
+  aux[task_number - 1]->reduce(dim, B, B, bwA, bwB);
 #else
   if ((bwA - bwB) >= div) {
-    truncation->truncate_and_reduce(dim, tmpB, B, div, bwA);
-    aux->reduce(dim, B, B, bwA - div, bwB);
+    truncation[task_number - 1]->truncate_and_reduce(dim, tmpB, B, div, bwA);
+    aux[task_number - 1]->reduce(dim, B, B, bwA - div, bwB);
   } else {
-    truncation->truncate(dim, tmpB, B, div, bwA, true);
-    aux->reduce(dim, B, B, bwA, bwB);
+    truncation[task_number - 1]->truncate(dim, tmpB, B, div, bwA, true);
+    aux[task_number - 1]->reduce(dim, B, B, bwA, bwB);
   }
 #endif
 
@@ -1159,18 +1170,18 @@ void ReLU(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  ReluTimeInMilliSec += temp;
+  ReluTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current ReLU = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  ReluCommSent += curComm;
+  ReluCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
            int32_t J, int32_t bwA, int32_t bwBNW, int32_t bwBNB, int32_t bwTemp,
-           int32_t bwB, int32_t shA, int32_t shBNB, int32_t shB) {
+           int32_t bwB, int32_t shA, int32_t shBNB, int32_t shB, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -1181,8 +1192,8 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
   uint64_t *tmpBNB = new uint64_t[J];
   uint64_t *tmpBNW = new uint64_t[J];
   uint64_t *tmpB = new uint64_t[I * J];
-  xt->s_extend(I * J, A, tmpA, bwA, bwTemp);
-  xt->s_extend(J, BNB, tmpBNB, bwBNB, bwTemp);
+  xt[task_number - 1]->s_extend(I * J, A, tmpA, bwA, bwTemp);
+  xt[task_number - 1]->s_extend(J, BNB, tmpBNB, bwBNB, bwTemp);
   // xt->s_extend(J, BNW, tmpBNW, bwBNW, bwTemp);
   memcpy(tmpBNW, BNW, J * sizeof(uint64_t));
   if (shA <= 0) {
@@ -1191,9 +1202,9 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
     }
   } else {
 #ifdef DIV_RESCALING
-    truncation->div_pow2(I * J, tmpA, A, shA, bwTemp, true);
+    truncation[task_number - 1]->div_pow2(I * J, tmpA, A, shA, bwTemp, true);
 #else
-    truncation->truncate(I * J, tmpA, A, shA, bwTemp, true);
+    truncation[task_number - 1]->truncate(I * J, tmpA, A, shA, bwTemp, true);
 #endif
   }
   if (shBNB <= 0) {
@@ -1202,9 +1213,9 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
     }
   } else {
 #ifdef DIV_RESCALING
-    truncation->div_pow2(J, tmpBNB, BNB, shBNB, bwTemp, true);
+    truncation[task_number - 1]->div_pow2(J, tmpBNB, BNB, shBNB, bwTemp, true);
 #else
-    truncation->truncate(J, tmpBNB, BNB, shBNB, bwTemp, true);
+    truncation[task_number - 1]->truncate(J, tmpBNB, BNB, shBNB, bwTemp, true);
 #endif
   }
   for (int i = 0; i < I; i++) {
@@ -1214,7 +1225,7 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
   }
   // mult->hadamard_product(I*J, tmpA, tmpBNW, tmpB, bwTemp, bwTemp, bwTemp,
   // true, true);
-  mult->matrix_multiplication(I, J, 1, tmpA, tmpBNW, tmpB, bwTemp, bwBNW,
+  mult[task_number - 1]->matrix_multiplication(I, J, 1, tmpA, tmpBNW, tmpB, bwTemp, bwBNW,
                               bwTemp, true, true, false, MultMode::Alice_has_B);
 
   if (shB <= 0) {
@@ -1223,12 +1234,12 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
     }
   } else {
 #ifdef DIV_RESCALING
-    truncation->div_pow2(I * J, tmpB, B, shB, bwTemp, true);
+    truncation[task_number - 1]->div_pow2(I * J, tmpB, B, shB, bwTemp, true);
 #else
-    truncation->truncate(I * J, tmpB, B, shB, bwTemp, true);
+    truncation[task_number - 1]->truncate(I * J, tmpB, B, shB, bwTemp, true);
 #endif
   }
-  aux->reduce(I * J, B, B, bwTemp, bwB);
+  aux[task_number - 1]->reduce(I * J, B, B, bwTemp, bwB);
 
   delete[] tmpA;
   delete[] tmpBNB;
@@ -1237,17 +1248,17 @@ void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  BatchNormInMilliSec += temp;
+  BatchNormInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current BatchNorm = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  BatchNormCommSent += curComm;
+  BatchNormCommSent[task_number - 1] += curComm;
 #endif
 }
 
 void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-                 int32_t scaleA, int32_t shrA) {
+                 int32_t scaleA, int32_t shrA, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_TIMER;
   INIT_ALL_IO_DATA_SENT;
@@ -1261,9 +1272,9 @@ void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
   uint64_t *tmpB = new uint64_t[I * J];
   uint64_t *sumSquare = new uint64_t[I];
   uint64_t *inverseNorm = new uint64_t[I];
-  mult->hadamard_product(I * J, A, A, tmpB, bwA, bwA, 2 * bwA, true, true,
+  mult[task_number - 1]->hadamard_product(I * J, A, A, tmpB, bwA, bwA, 2 * bwA, true, true,
                          MultMode::None);
-  truncation->truncate(I * J, tmpB, B, 2 * shrA, 2 * bwA, true);
+  truncation[task_number - 1]->truncate(I * J, tmpB, B, 2 * shrA, 2 * bwA, true);
   // truncation->truncate_and_reduce(I*J, tmpB, B, 2*shrA, 2*bwA);
   for (int i = 0; i < I; i++) {
     sumSquare[i] = 0;
@@ -1273,17 +1284,17 @@ void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
     sumSquare[i] &= mask_sumSquare;
   }
 
-  math->sqrt(I, sumSquare, inverseNorm, bw_sumSquare, bwA + shrA,
+  math[task_number - 1]->sqrt(I, sumSquare, inverseNorm, bw_sumSquare, bwA + shrA,
              2 * (scale_in - shrA), scale_out - scale_in + shrA, true);
 
-  mult->matrix_multiplication(1, I, J, inverseNorm, A, B, bwA + shrA, bwA,
+  mult[task_number - 1]->matrix_multiplication(1, I, J, inverseNorm, A, B, bwA + shrA, bwA,
                               bwA + shrA, true, true, false, MultMode::None);
 
 #ifdef DIV_RESCALING
-  truncation->div_pow2(I * J, B, tmpB, shrA, bwA + shrA, true);
-  aux->reduce(I * J, tmpB, tmpB, bwA + shrA, bwA);
+  truncation[task_number - 1]->div_pow2(I * J, B, tmpB, shrA, bwA + shrA, true);
+  aux[task_number - 1]->reduce(I * J, tmpB, tmpB, bwA + shrA, bwA);
 #else
-  truncation->truncate_and_reduce(I * J, B, tmpB, shrA, bwA + shrA);
+  truncation[task_number - 1]->truncate_and_reduce(I * J, B, tmpB, shrA, bwA + shrA);
 #endif
 
   for (int i = 0; i < I; i++) {
@@ -1298,19 +1309,19 @@ void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  NormaliseL2TimeInMilliSec += temp;
+  NormaliseL2TimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current NormaliseL2 = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  NormaliseL2CommSent += curComm;
+  NormaliseL2CommSent[task_number - 1] += curComm;
 #endif
 }
 
 // template<class int64_t, class int64_t, class int64_t, class int64_t>
 void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
             int64_t demote, int64_t bwA, int64_t bwB, int64_t bwTemp,
-            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, bool verbose, int task_number) {
+            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, int task_number, bool verbose) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatAdd(A, B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1341,7 +1352,7 @@ void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
   uint64_t *tmpC = new uint64_t[I * J];
 
   MatAdd(tmpA, tmpB, tmpC, I, J, bwA, bwB, bwC, bwTemp, shiftA, shiftB, shiftC,
-         shift_demote, false, task_number);
+         shift_demote, task_number, false);
 
   typecast_from_uint64(tmpC, C, I, J, bwC);
 
@@ -1399,7 +1410,7 @@ void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
 // template<class int64_t, class int64_t, class int64_t, class int64_t>
 void MatSub(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
             int64_t demote, int64_t bwA, int64_t bwB, int64_t bwTemp,
-            int64_t bwC, int64_t *A, int64_t *B, int64_t *C) {
+            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatSub(A, B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1415,7 +1426,7 @@ void MatSub(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
     minus_B[i] = int64_t(-1) * B[i];
   }
   MatAdd(I, J, shrA, shrB, shrC, demote, bwA, bwB, bwTemp, bwC, A, minus_B, C,
-         false);
+         task_number, false);
 
   delete[] minus_B;
 
@@ -1459,7 +1470,7 @@ void MatSub(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
 void MatAddBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t A, int64_t *B,
-                      int64_t *C, bool verbose) {
+                      int64_t *C, int task_number, bool verbose) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatAddBroadCastA(&A, B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1483,7 +1494,7 @@ void MatAddBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
   uint64_t *tmpC = new uint64_t[I * J];
 
   MatAddBroadCast(&tmpA, tmpB, tmpC, I, J, bwA, bwB, bwC, bwTemp, shiftA,
-                  shiftB, shiftC, shift_demote, true);
+                  shiftB, shiftC, shift_demote, task_number, true);
   typecast_from_uint64(tmpC, C, I, J, bwC);
 
   delete[] tmpB;
@@ -1532,7 +1543,7 @@ void MatAddBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
 void MatAddBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t *A, int64_t B,
-                      int64_t *C, bool verbose) {
+                      int64_t *C, int task_number, bool verbose) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatAddBroadCastB(A, &B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1561,7 +1572,7 @@ void MatAddBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
   uint64_t *tmpC = new uint64_t[I * J];
 
   MatAddBroadCast(tmpA, &tmpB, tmpC, I, J, bwA, bwB, bwC, bwTemp, shiftA,
-                  shiftB, shiftC, shift_demote, false);
+                  shiftB, shiftC, shift_demote, task_number, false);
   typecast_from_uint64(tmpC, C, I, J, bwC);
 
   delete[] tmpA;
@@ -1611,7 +1622,7 @@ void MatAddBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
 void MatSubBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t A, int64_t *B,
-                      int64_t *C) {
+                      int64_t *C, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatSubBroadCastA(&A, B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1627,7 +1638,7 @@ void MatSubBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
     minus_B[i] = int64_t(-1) * B[i];
   }
   MatAddBroadCastA(I, J, shrA, shrB, shrC, demote, bwA, bwB, bwTemp, bwC, A,
-                   minus_B, C, false);
+                   minus_B, C, task_number, false);
 
   delete[] minus_B;
 
@@ -1672,7 +1683,7 @@ void MatSubBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
 void MatSubBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t *A, int64_t B,
-                      int64_t *C) {
+                      int64_t *C, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MatSubBroadCastB(A, &B, C, I, J, shrA, shrB, shrC, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1686,7 +1697,7 @@ void MatSubBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
 
   int64_t minus_B = int64_t(-1) * (B);
   MatAddBroadCastB(I, J, shrA, shrB, shrC, demote, bwA, bwB, bwTemp, bwC, A,
-                   minus_B, C, false);
+                   minus_B, C, task_number, false);
 
 #ifdef VERIFY_LAYERWISE
   int64_t *recA = new int64_t[I * J];
@@ -1734,7 +1745,7 @@ void AdjustScaleShl(int64_t I, int64_t J, int64_t scale, int64_t *A) {
 
 void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
             int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, int64_t *A,
-            int64_t *B, int64_t *C) {
+            int64_t *B, int64_t *C, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MulCir(A, B, C, I, J, shrA, shrB, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1748,14 +1759,14 @@ void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
 #endif
 
   MulCir(I, J, shrA, shrB, demote, bwA, bwB, bwTemp, bwC, (uint64_t *)A,
-         (uint64_t *)B, (uint64_t *)C);
+         (uint64_t *)B, (uint64_t *)C, task_number);
 
 #endif
 }
 
 void ScalarMul(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
                int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, int64_t A,
-               int64_t *B, int64_t *C) {
+               int64_t *B, int64_t *C, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_ScalarMul(&A, B, C, I, J, shrA, shrB, demote);
   for (int i = 0; i < I * J; i++) {
@@ -1779,7 +1790,7 @@ void ScalarMul(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
   uint64_t *tmpC = new uint64_t[I * J];
 
   ScalarMul(tmpA, tmpB, tmpC, I, J, bwA, bwB, bwTemp, bwC, shiftA, shiftB,
-            shift_demote);
+            shift_demote, task_number);
   typecast_from_uint64(tmpC, C, I, J, bwC);
 
   delete[] tmpA;
@@ -1822,7 +1833,7 @@ void ScalarMul(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
 }
 
 void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-             int64_t bwA, int64_t bwB, int64_t *A, int64_t *B) {
+             int64_t bwA, int64_t bwB, int64_t *A, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_Sigmoid(A, I, J, scale_in, scale_out, bwA, bwB, B);
   for (int i = 0; i < I * J; i++) {
@@ -1838,7 +1849,7 @@ void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmpB = new uint64_t[I * J];
-  Sigmoid(I, J, scale_in, scale_out, bwA, bwB, tmpA, tmpB);
+  Sigmoid(I, J, scale_in, scale_out, bwA, bwB, tmpA, tmpB, task_number);
   typecast_from_uint64(tmpB, B, I, J, bwB);
 
   delete[] tmpA;
@@ -1848,7 +1859,7 @@ void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 }
 
 void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, int64_t *A, int64_t *B) {
+          int64_t bwA, int64_t bwB, int64_t *A, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_TanH(A, I, J, scale_in, scale_out, bwA, bwB, B);
   for (int i = 0; i < I * J; i++) {
@@ -1864,7 +1875,7 @@ void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmpB = new uint64_t[I * J];
-  TanH(I, J, scale_in, scale_out, bwA, bwA, tmpA, tmpB);
+  TanH(I, J, scale_in, scale_out, bwA, bwA, tmpA, tmpB, task_number);
   typecast_from_uint64(tmpB, B, I, J, bwB);
 
   delete[] tmpA;
@@ -1875,7 +1886,7 @@ void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
 
 // template<class int64_t>
 void ArgMax(int64_t I, int64_t J, int32_t bwA, int32_t bw_index, int64_t *A,
-            int64_t *index) {
+            int64_t *index, int task_number) {
 #ifdef CLEARTEXT_ONLY
   int32_t index_tmp;
   cleartext_ArgMax(A, (int32_t)I, (int32_t)J, &index_tmp);
@@ -1889,7 +1900,7 @@ void ArgMax(int64_t I, int64_t J, int32_t bwA, int32_t bw_index, int64_t *A,
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmp_index = new uint64_t[1];
-  ArgMax(tmpA, I, J, bwA, bw_index, tmp_index);
+  ArgMax(tmpA, I, J, bwA, bw_index, tmp_index, task_number);
   typecast_from_uint64(tmp_index, index, 1, 1, bw_index);
 
   delete[] tmpA;
@@ -1924,7 +1935,7 @@ void ArgMax(int64_t I, int64_t J, int32_t bwA, int32_t bw_index, int64_t *A,
 }
 
 void AdjustScaleShr(int32_t I, int32_t J, int32_t scale, int64_t bwA,
-                    int64_t *A) {
+                    int64_t *A, int task_number) {
 #ifdef CLEARTEXT_ONLY
   for (int i = 0; i < I * J; i++) {
     A[i] /= scale;
@@ -1941,7 +1952,7 @@ void AdjustScaleShr(int32_t I, int32_t J, int32_t scale, int64_t bwA,
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmpB = new uint64_t[I * J];
-  AdjustScaleShr(tmpA, tmpB, I, J, bwA, shift_scale);
+  AdjustScaleShr(tmpA, tmpB, I, J, bwA, shift_scale, task_number);
   typecast_from_uint64(tmpB, A, I, J, bwA);
 
   delete[] tmpA;
@@ -1956,7 +1967,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WDL, int32_t G, int32_t shrA, int32_t shrB, int32_t H1,
                  int32_t H2, int32_t demote, int32_t bwA, int32_t bwB,
                  int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B,
-                 int64_t *C, int64_t *tmp, bool verbose) {
+                 int64_t *C, int64_t *tmp, int task_number, bool verbose) {
 #ifdef CLEARTEXT_ONLY
   cleartext_Convolution(A, B, C, nullptr, N, H, W, CIN, HF, WF, CINF, COUTF,
                         HOUT, WOUT, HPADL, HPADR, WPADL, WPADR, HSTR, WSTR, HDL,
@@ -1977,7 +1988,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
   uint64_t *tmpC = new uint64_t[N * HOUT * WOUT * COUTF * G];
   Convolution(N, H, W, CIN, HF, WF, CINF, COUTF, HOUT, WOUT, HPADL, HPADR,
               WPADL, WPADR, HSTR, WSTR, HDL, WDL, G, bwA, bwB, bwC, bwTemp,
-              shrA, shrB, H1, H2, demote, tmpA, tmpB, tmpC);
+              shrA, shrB, H1, H2, demote, tmpA, tmpB, tmpC, task_number);
 
   typecast_from_uint64(tmpC, C, N, HOUT * WOUT * COUTF * G, bwC);
 
@@ -1988,7 +1999,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
 }
 
 void NormaliseL2(int32_t N, int32_t H, int32_t W, int32_t C, int32_t scaleA,
-                 int32_t shrA, int32_t bwA, int64_t *A, int64_t *B) {
+                 int32_t shrA, int32_t bwA, int64_t *A, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_NormaliseL2(A, B, N, H, W, C, scaleA, shrA, bwA, bwA);
   for (int i = 0; i < (N * H * W * C); i++) {
@@ -2007,7 +2018,7 @@ void NormaliseL2(int32_t N, int32_t H, int32_t W, int32_t C, int32_t scaleA,
   typecast_to_uint64(A, tmpA, N * H * W, C, bwA);
   uint64_t *tmpB = new uint64_t[N * H * W * C];
 
-  NormaliseL2(tmpA, tmpB, N * H * W, C, bwA, scaleA, shrA);
+  NormaliseL2(tmpA, tmpB, N * H * W, C, bwA, scaleA, shrA, task_number);
   typecast_from_uint64(tmpB, B, N * H * W, C, bwA);
 
   delete[] tmpA;
@@ -2051,7 +2062,7 @@ void NormaliseL2(int32_t N, int32_t H, int32_t W, int32_t C, int32_t scaleA,
 }
 
 void Relu6(int32_t N, int32_t H, int32_t W, int32_t C, int64_t six, int32_t div,
-           int32_t bwA, int32_t bwB, int64_t *A, int64_t *B) {
+           int32_t bwA, int32_t bwB, int64_t *A, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_Relu6(A, B, N, H, W, C, six, div);
   for (int i = 0; i < N * H * W * C; i++) {
@@ -2070,7 +2081,7 @@ void Relu6(int32_t N, int32_t H, int32_t W, int32_t C, int64_t six, int32_t div,
   typecast_to_uint64(A, tmpA, N * H * W, C, bwA);
 
   uint64_t *tmpB = new uint64_t[N * H * W * C];
-  ReLU(tmpA, tmpB, N * H * W, C, bwA, bwB, six, shift_div);
+  ReLU(tmpA, tmpB, N * H * W, C, bwA, bwB, six, shift_div, task_number);
   typecast_from_uint64(tmpB, B, N * H * W, C, bwB);
 
   delete[] tmpA;
@@ -2110,7 +2121,7 @@ void Relu6(int32_t N, int32_t H, int32_t W, int32_t C, int64_t six, int32_t div,
 
 void BNorm(int32_t I, int32_t J, int32_t shA, int32_t shBNB, int32_t shB,
            int32_t bwA, int32_t bwBNW, int32_t bwBNB, int32_t bwTemp,
-           int32_t bwB, int64_t *A, int64_t *BNW, int64_t *BNB, int64_t *B) {
+           int32_t bwB, int64_t *A, int64_t *BNW, int64_t *BNB, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_BNorm(A, BNW, BNB, B, I, J, shA, shBNB, shB);
   for (int i = 0; i < I * J; i++) {
@@ -2136,7 +2147,7 @@ void BNorm(int32_t I, int32_t J, int32_t shA, int32_t shBNB, int32_t shB,
   uint64_t *tmpB = new uint64_t[I * J];
 
   BNorm(tmpA, tmpBNW, tmpBNB, tmpB, I, J, bwA, bwBNW, bwBNB, bwTemp, bwB, shA,
-        shBNB, shB);
+        shBNB, shB, task_number);
 
   typecast_from_uint64(tmpB, B, I, J, bwB);
 
@@ -2185,7 +2196,7 @@ void BNorm(int32_t I, int32_t J, int32_t shA, int32_t shBNB, int32_t shB,
 #endif
 }
 
-void MaxPool2D(int I, int J, int bwA, int bwB, int64_t *A, int64_t *B) {
+void MaxPool2D(int I, int J, int bwA, int bwB, int64_t *A, int64_t *B, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MaxPool2D(A, I, J, B);
 #else
@@ -2197,7 +2208,7 @@ void MaxPool2D(int I, int J, int bwA, int bwB, int64_t *A, int64_t *B) {
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmp_max = new uint64_t[I];
-  MaxPool2D(tmpA, I, J, bwA, bwB, tmp_max);
+  MaxPool2D(tmpA, I, J, bwA, bwB, tmp_max, task_number);
   typecast_from_uint64(tmp_max, B, I, 1, bwB);
 
   delete[] tmpA;
@@ -2268,7 +2279,7 @@ void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
             int32_t bwUB1W, int32_t bwUB2W, int32_t bwUB3W, int64_t *A,
             int64_t *F1, int64_t *BN1W, int64_t *BN1B, int64_t *F2,
             int64_t *BN2W, int64_t *BN2B, int64_t *F3, int64_t *BN3W,
-            int64_t *BN3B, int64_t *C, int64_t *X, int64_t *T, int64_t *U) {
+            int64_t *BN3B, int64_t *C, int64_t *X, int64_t *T, int64_t *U, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_MBConv(A, F1, BN1W, BN1B, F2, BN2W, BN2B, F3, BN3W, BN3B, C,
                    nullptr, nullptr, nullptr, N, H, W, Cin, Ct, HF, WF, Cout,
@@ -2290,15 +2301,15 @@ void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
   int64_t *tmpU = new int64_t[N * H * W * Ct];
   Convolution(N, H, W, Cin, 1, 1, Cin, Ct, H, W, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1,
               1, D1, depth_1 - D1, 1, bwA, bwF1, bwU, bwU, A, F1, tmpU, nullptr,
-              true);
+              task_number, true);
 
   int64_t *tmpUB1W = new int64_t[N * H * W * Ct];
   int64_t *tmpX = new int64_t[N * H * W * Ct];
   BNorm(N * H * W, Ct, int32_t(log2(shr1 / double(shl1))),
         int32_t(log2(shr2 / double(shl2))), 0, bwU, bwB1W, bwB1B, bwUB1W,
-        bwUB1W, tmpU, BN1W, BN1B, tmpUB1W);
+        bwUB1W, tmpU, BN1W, BN1B, tmpUB1W, task_number);
 
-  Relu6(N, H, W, Ct, SIX_1, shr3, bwUB1W, bwX, tmpUB1W, tmpX);
+  Relu6(N, H, W, Ct, SIX_1, shr3, bwUB1W, bwX, tmpUB1W, tmpX, task_number);
   if (shl3 > 1) {
     for (int i = 0; i < N * H * W * Ct; i++) {
       tmpX[i] = (tmpX[i] * shl3);
@@ -2310,26 +2321,26 @@ void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
   tmpU = new int64_t[N * Hout * Wout * Ct];
   Convolution(N, H, W, Ct, HF, WF, 1, 1, Hout, Wout, HPADL, HPADR, WPADL, WPADR,
               HSTR, WSTR, 1, 1, Ct, 1, 1, D2, depth_2 - D2, 1, bwX, bwF2, bwU,
-              bwU, tmpX, F2, tmpU, nullptr, true);
+              bwU, tmpX, F2, tmpU, nullptr, task_number, true);
 
   int64_t *tmpUB2W = new int64_t[N * Hout * Wout * Ct];
   int64_t *tmpT = new int64_t[N * Hout * Wout * Ct];
   BNorm(N * Hout * Wout, Ct, int32_t(log2(shr4 / double(shl4))),
         int32_t(log2(shr5 / double(shl5))), 0, bwU, bwB2W, bwB2B, bwUB2W,
-        bwUB2W, tmpU, BN2W, BN2B, tmpUB2W);
+        bwUB2W, tmpU, BN2W, BN2B, tmpUB2W, task_number);
 
-  Relu6(N, Hout, Wout, Ct, SIX_2, shr6, bwUB2W, bwT, tmpUB2W, tmpT);
+  Relu6(N, Hout, Wout, Ct, SIX_2, shr6, bwUB2W, bwT, tmpUB2W, tmpT, task_number);
 
   int32_t depth_3 = ceil(log2(Ct));
   delete[] tmpU;
   tmpU = new int64_t[N * Hout * Wout * Cout];
   Convolution(N, Hout, Wout, Ct, 1, 1, Ct, Cout, Hout, Wout, 0, 0, 0, 0, 1, 1,
               1, 1, 1, 1, 1, D3, depth_3 - D3, 1, bwT, bwF3, bwU, bwU, tmpT, F3,
-              tmpU, nullptr, true);
+              tmpU, nullptr, task_number, true);
 
   BNorm(N * Hout * Wout, Cout, int32_t(log2(shr7 / double(shl7))),
         int32_t(log2(shr8 / double(shl8))), int32_t(log2(shr9 / double(shl9))),
-        bwU, bwB3W, bwB3B, bwUB3W, bwC, tmpU, BN3W, BN3B, C);
+        bwU, bwB3W, bwB3B, bwUB3W, bwC, tmpU, BN3W, BN3B, C, task_number);
 
   delete[] tmpU;
   delete[] tmpT;
@@ -2399,7 +2410,7 @@ void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
 void AddOrSubCir4D(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
                    int32_t shrB, int32_t shrC, bool add, int32_t demote,
                    int32_t bwA, int32_t bwB, int32_t bwTemp, int32_t bwC,
-                   int64_t *A, int64_t *B, int64_t *X) {
+                   int64_t *A, int64_t *B, int64_t *X, int task_number) {
 #ifdef CLEARTEXT_ONLY
   cleartext_AddOrSubCir4D(A, B, X, N, H, W, C, shrA, shrB, shrC, add, demote);
   for (int i = 0; i < (N * H * W * C); i++) {
@@ -2424,7 +2435,7 @@ void AddOrSubCir4D(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
   uint64_t *tmpC = new uint64_t[N * H * W * C];
 
   AddOrSubCir(tmpA, tmpB, tmpC, N * H * W, C, bwA, bwB, bwC, bwTemp, shiftA,
-              shiftB, shiftC, add, shift_demote);
+              shiftB, shiftC, add, shift_demote, task_number);
 
   typecast_from_uint64(tmpC, X, N * H * W, C, bwC);
 
@@ -2477,9 +2488,9 @@ void AddOrSubCir4D(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
 void MatAdd4(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
              int32_t shrB, int32_t shrC, int32_t demote, int32_t bwA,
              int32_t bwB, int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B,
-             int64_t *X) {
+             int64_t *X, int task_number) {
   MatAdd(N * H * W, C, shrA, shrB, shrC, demote, bwA, bwB, bwTemp, bwC, A, B, X,
-         true);
+         task_number, true);
 }
 
 // Athos wrappers. Athos passes scale factor as is. We need to take pow_2
@@ -2510,7 +2521,7 @@ void Sqrt(int32_t I, int32_t J, int32_t scale_in, int32_t scale_out,
 }
 
 void Exp(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t bwA,
-         int64_t *A, int64_t *B) {
+         int64_t *A, int64_t *B, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". Exp (" << I << " x " << J << ")" << std::endl;
 #endif
@@ -2522,7 +2533,7 @@ void Exp(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t bwA,
   typecast_to_uint64(A, tmpA, I, J, bwA);
 
   uint64_t *tmpB = new uint64_t[I * J];
-  Exp(tmpA, tmpB, I, J, bwA, bwA, s_A, s_B);
+  Exp(tmpA, tmpB, I, J, bwA, bwA, s_A, s_B, task_number);
   typecast_from_uint64(tmpB, B, I, J, bwA);
 
   delete[] tmpA;
@@ -2559,7 +2570,7 @@ void Exp(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t bwA,
 }
 
 void Div(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t shrC,
-         int32_t bwA, int64_t *A, int64_t *B, int64_t *C) {
+         int32_t bwA, int64_t *A, int64_t *B, int64_t *C, int task_number) {
 #ifdef LOG_LAYERWISE
   std::cout << ctr++ << ". Div (" << I << " x " << J << ")" << std::endl;
 #endif
@@ -2575,7 +2586,7 @@ void Div(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t shrC,
   typecast_to_uint64(B, tmpB, I, J, bwA);
 
   uint64_t *tmpC = new uint64_t[I * J];
-  Div(tmpA, tmpB, tmpC, I, J, bwA, bwA, bwA, s_A, s_B, s_C);
+  Div(tmpA, tmpB, tmpC, I, J, bwA, bwA, bwA, s_A, s_B, s_C, task_number);
   typecast_from_uint64(tmpC, C, I, J, bwA);
 
   delete[] tmpA;
@@ -2616,9 +2627,9 @@ void Div(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t shrC,
   return;
 }
 
-void output_vector(int64_t *x, int32_t I, int32_t J, int32_t bwX) {
+void output_vector(int64_t *x, int32_t I, int32_t J, int32_t bwX, int task_number) {
   int64_t *y = new int64_t[I * J];
-  reconstruct(x, y, I, J, bwX);
+  reconstruct(x, y, I, J, bwX, task_number);
   if (party == 2) {
     for (int i = 0; i < I * J; i++) {
       std::cout << y[i] << " ";

@@ -1,0 +1,319 @@
+Using Eigen for Matmul
+Doing BaseOT ...
+using silent ot pack
+using silent ot pack
+using silent ot pack
+using silent ot pack
+After one-time setup, communication
+Thread i = 0, total data sent till now = 1997736
+Thread i = 1, total data sent till now = 1726247
+Thread i = 2, total data sent till now = 1726247
+Thread i = 3, total data sent till now = 1726247
+-----------Syncronizing-----------
+secret_share_mod: 137438953472 bitlength: 37
+backend: Ring-SilentOT-Cheetah
+-----------Syncronized - now starting execution-----------
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #1 called N=1, H=227, W=227, CI=3, FH=3, FW=3, CO=64, S=2, Padding VALID (0 0 0 0)
+expect -5174 but got -5173
+expect -32 but got -31
+expect -66 but got -67
+[32mConvolution Output Matches[0m
+Using Eigen for Matmul
+Doing BaseOT ...
+Maxpool 1 called N=1, H=56, W=56, C=64, ksizeH=3, ksizeW=3
+using silent ot pack
+using silent ot pack
+Relu task 1
+Relu #1 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+using silent ot pack
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #2 called N=1, H=56, W=56, CI=64, FH=1, FW=1, CO=16, S=1, Padding VALID (0 0 0 0)
+expect 3001543 but got 3001544
+expect 4713026 but got 4713027
+expect 8142732 but got 8142731
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #3 on 50176 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #3 called N=1, H=56, W=56, CI=16, FH=1, FW=1, CO=64, S=1, Padding VALID (0 0 0 0)
+expect -674997 but got -674996
+expect 6722063 but got 6722064
+expect -2660479 but got -2660480
+expect 478311 but got 478310
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #5 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #4 called N=1, H=56, W=56, CI=16, FH=3, FW=3, CO=64, S=1, Padding SAME (1 1 1 1)
+expect -10276115 but got -10276114
+expect -3357023 but got -3357022
+expect 846995 but got 846994
+expect 10453410 but got 10453409
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #7 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+using silent ot pack
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #5 called N=1, H=56, W=56, CI=128, FH=1, FW=1, CO=16, S=1, Padding VALID (0 0 0 0)
+expect 26377840 but got 26377841
+expect 7494118 but got 7494119
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #9 on 50176 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #6 called N=1, H=56, W=56, CI=16, FH=1, FW=1, CO=64, S=1, Padding VALID (0 0 0 0)
+expect -2649278 but got -2649277
+expect 4336961 but got 4336962
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #11 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #7 called N=1, H=56, W=56, CI=16, FH=3, FW=3, CO=64, S=1, Padding SAME (1 1 1 1)
+expect 2571863 but got 2571864
+expect -26048095 but got -26048094
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #13 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Maxpool 2 called N=1, H=27, W=27, C=128, ksizeH=3, ksizeW=3
+After one-time setup, communication
+Thread i = 4, total data sent till now = 1997738
+Thread i = 5, total data sent till now = 1726247
+Thread i = 6, total data sent till now = 1726247
+Thread i = 7, total data sent till now = 1726247
+-----------Syncronizing-----------
+secret_share_mod: 137438953472 bitlength: 37
+backend: Ring-SilentOT-Cheetah
+-----------Syncronized - now starting execution-----------
+Conv2DWrapper, task number: 2
+Conv2DWrapper, point 1, task number: 2
+HomConv #8 called N=1, H=227, W=227, CI=3, FH=3, FW=3, CO=64, S=2, Padding VALID (0 0 0 0)
+expect -227 but got -226
+expect -34 but got -33
+expect 327 but got 326
+[32mConvolution Output Matches[0m
+Maxpool 3 called N=1, H=56, W=56, C=64, ksizeH=3, ksizeW=3
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #9 called N=1, H=27, W=27, CI=128, FH=1, FW=1, CO=32, S=1, Padding VALID (0 0 0 0)
+expect -28554761 but got -28554760
+expect 23204765 but got 23204766
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #15 on 23328 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #10 called N=1, H=27, W=27, CI=32, FH=1, FW=1, CO=128, S=1, Padding VALID (0 0 0 0)
+expect -9607771 but got -9607770
+expect -11810253 but got -11810252
+expect 1144592 but got 1144591
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #17 on 93312 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #11 called N=1, H=27, W=27, CI=32, FH=3, FW=3, CO=128, S=1, Padding SAME (1 1 1 1)
+expect 3749074 but got 3749075
+expect -15169364 but got -15169363
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #19 on 93312 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #12 called N=1, H=27, W=27, CI=256, FH=1, FW=1, CO=32, S=1, Padding VALID (0 0 0 0)
+expect 12391882 but got 12391883
+expect 8308705 but got 8308706
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #21 on 23328 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #13 called N=1, H=27, W=27, CI=32, FH=1, FW=1, CO=128, S=1, Padding VALID (0 0 0 0)
+expect -11250622 but got -11250621
+expect -5699504 but got -5699503
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #23 on 93312 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #14 called N=1, H=27, W=27, CI=32, FH=3, FW=3, CO=128, S=1, Padding SAME (1 1 1 1)
+expect -25538779 but got -25538778
+expect -44044924 but got -44044923
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #25 on 93312 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Maxpool 4 called N=1, H=13, W=13, C=256, ksizeH=3, ksizeW=3
+Relu task 2
+Relu #27 on 200704 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #15 called N=1, H=13, W=13, CI=256, FH=1, FW=1, CO=48, S=1, Padding VALID (0 0 0 0)
+expect 9794784 but got 9794785
+expect 140971 but got 140972
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #29 on 8112 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #16 called N=1, H=13, W=13, CI=48, FH=1, FW=1, CO=192, S=1, Padding VALID (0 0 0 0)
+expect 5791370 but got 5791371
+expect -26748060 but got -26748059
+[32mConvolution Output Matches[0m
+Relu task 1
+Relu #31 on 32448 points, truncate=1 by 12 bits
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Mill dotrunc 1 on 16 bits using b = 4
+Relu point 1 task 1
+Relu point 1.5 task 1
+Started all threads, task 1
+Relu point 2 task 1
+Relu point 3 task 1
+Conv2DWrapper, task number: 1
+Conv2DWrapper, point 1, task number: 1
+HomConv #17 called N=1, H=13, W=13, CI=48, FH=3, FW=3, CO=192, S=1, Padding SAME (1 1 1 1)
+Relu point 1 task 2
+Relu point 1.5 task 2
+Started all threads, task 2
+Relu point 2 task 2
+Relu point 3 task 2
+Conv2DWrapper, task number: 2
+Conv2DWrapper, point 1, task number: 2

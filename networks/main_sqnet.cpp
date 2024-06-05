@@ -5,6 +5,8 @@ Then hand crafted by Wen-jie Lu
 
 #include "library_fixed.h"
 #include <iostream>
+#include "layer_processor.h"
+#include "load_input.h"
 using namespace std;
 
 int party = 0;
@@ -482,7 +484,7 @@ void Conv2D(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH, int64_t FW,
             int64_t CO, int64_t zPadHLeft, int64_t zPadHRight,
             int64_t zPadWLeft, int64_t zPadWRight, int64_t strideH,
             int64_t strideW, uint64_t *inputArr, uint64_t *filterArr,
-            uint64_t *outArr) {
+            uint64_t *outArr, int task_number) {
 
   int64_t reshapedFilterRows = CO;
 
@@ -510,7 +512,7 @@ void Conv2D(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH, int64_t FW,
                      zPadWRight, strideH, strideW, reshapedIPRows,
                      reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv2DReshapeMatMulOP(N, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -691,7 +693,7 @@ void Conv2DGroup(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH,
                  int64_t FW, int64_t CO, int64_t zPadHLeft, int64_t zPadHRight,
                  int64_t zPadWLeft, int64_t zPadWRight, int64_t strideH,
                  int64_t strideW, int64_t G, uint64_t *inputArr,
-                 uint64_t *filterArr, uint64_t *outArr) {
+                 uint64_t *filterArr, uint64_t *outArr, int task_number) {
 
   int64_t CIG = (CI / G);
 
@@ -724,7 +726,7 @@ void Conv2DGroup(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH,
                             reshapedIPRows, reshapedIPCols, inputArr,
                             inputReshaped);
     MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-             filterReshaped, inputReshaped, matmulOP, 1);
+             filterReshaped, inputReshaped, matmulOP, 1, task_number);
     Conv2DReshapeMatMulOPGroup(N, outH, outW, CO, g, G, matmulOP, outArr);
     ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
     ClearMemSecret2(reshapedFilterRows, reshapedIPCols, matmulOP);
@@ -849,7 +851,7 @@ void Conv3D(int64_t N, int64_t D, int64_t H, int64_t W, int64_t CI, int64_t FD,
             int64_t zPadDRight, int64_t zPadHLeft, int64_t zPadHRight,
             int64_t zPadWLeft, int64_t zPadWRight, int64_t strideD,
             int64_t strideH, int64_t strideW, uint64_t *inputArr,
-            uint64_t *filterArr, uint64_t *outArr) {
+            uint64_t *filterArr, uint64_t *outArr, int task_number) {
 
   int64_t reshapedFilterRows = CO;
 
@@ -881,7 +883,7 @@ void Conv3D(int64_t N, int64_t D, int64_t H, int64_t W, int64_t CI, int64_t FD,
                      strideH, strideW, reshapedIPRows, reshapedIPCols, inputArr,
                      inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv3DReshapeMatMulOP(N, newD, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1081,7 +1083,7 @@ void ConvTranspose2D(int64_t N, int64_t HPrime, int64_t WPrime, int64_t CI,
                      int64_t zPadTrHLeft, int64_t zPadTrHRight,
                      int64_t zPadTrWLeft, int64_t zPadTrWRight, int64_t strideH,
                      int64_t strideW, uint64_t *inputArr, uint64_t *filterArr,
-                     uint64_t *outArr) {
+                     uint64_t *outArr, int task_number) {
 
   int64_t reshapedFilterRows = CO;
 
@@ -1104,7 +1106,7 @@ void ConvTranspose2D(int64_t N, int64_t HPrime, int64_t WPrime, int64_t CI,
                               strideW, reshapedIPRows, reshapedIPCols, inputArr,
                               inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   ConvTranspose2DReshapeMatMulOP(N, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1237,7 +1239,7 @@ void ConvTranspose3D(int64_t N, int64_t DPrime, int64_t HPrime, int64_t WPrime,
                      int64_t zPadTrHRight, int64_t zPadTrWLeft,
                      int64_t zPadTrWRight, int64_t strideD, int64_t strideH,
                      int64_t strideW, uint64_t *inputArr, uint64_t *filterArr,
-                     uint64_t *outArr) {
+                     uint64_t *outArr, int task_number) {
 
   int64_t reshapedFilterRows = CO;
 
@@ -1260,7 +1262,7 @@ void ConvTranspose3D(int64_t N, int64_t DPrime, int64_t HPrime, int64_t WPrime,
       zPadTrHLeft, zPadTrHRight, zPadTrWLeft, zPadTrWRight, strideD, strideH,
       strideW, reshapedIPRows, reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv3DReshapeMatMulOP(N, D, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1556,7 +1558,7 @@ void Squeeze24(int64_t s1, int64_t s2, int64_t dim1, int64_t dim2, int64_t ins1,
 void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
                         uint64_t *inArr, uint64_t *multArr, uint64_t *biasArr,
                         int64_t multExprScaleDownSf, int64_t biasExprScaleUpSf,
-                        uint64_t *outputArr) {
+                        uint64_t *outputArr, int task_number) {
 
   int64_t inpSize = (((s1 * s2) * s3) * s4);
 
@@ -1581,9 +1583,9 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, task_number);
   if ((multExprScaleDownSf > (int32_t)0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, task_number);
   }
 
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s4);
@@ -1616,7 +1618,7 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
                         int64_t s5, uint64_t *inArr, uint64_t *multArr,
                         uint64_t *biasArr, int64_t multExprScaleDownSf,
-                        int64_t biasExprScaleUpSf, uint64_t *outputArr) {
+                        int64_t biasExprScaleUpSf, uint64_t *outputArr, int task_number) {
 
   int64_t inpSize = ((((s1 * s2) * s3) * s4) * s5);
 
@@ -1646,9 +1648,9 @@ void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, task_number);
   if ((multExprScaleDownSf > (int32_t)0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, task_number);
   }
 
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s5);
@@ -1684,7 +1686,7 @@ void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 }
 
 void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
-                  uint64_t *outArr) {
+                  uint64_t *outArr, int task_number) {
 
   int64_t inpSize = (s1 * s2);
 
@@ -1704,7 +1706,7 @@ void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
 
@@ -1719,7 +1721,7 @@ void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
 }
 
 void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
-                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr) {
+                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr, int task_number) {
 
   int64_t inpSize = (((s1 * s2) * s3) * s4);
 
@@ -1744,7 +1746,7 @@ void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -1764,7 +1766,7 @@ void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 }
 
 void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
-                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr) {
+                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr, int task_number) {
 
   int64_t inpSize = ((((s1 * s2) * s3) * s4) * s5);
 
@@ -1794,7 +1796,7 @@ void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -1820,7 +1822,7 @@ void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
 
 void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
                   int64_t inS3, int64_t inS4, uint64_t *inputArr, int64_t *axes,
-                  uint64_t *outputArr) {
+                  uint64_t *outputArr, int task_number) {
 
   int64_t divisor = (inS2 * inS3);
 
@@ -1842,7 +1844,7 @@ void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < outS1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -1855,7 +1857,7 @@ void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
 
 void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
                       int64_t inS3, int64_t inS4, uint64_t *inputArr,
-                      int64_t axis1, int64_t axis2, uint64_t *outputArr) {
+                      int64_t axis1, int64_t axis2, uint64_t *outputArr, int task_number) {
 
   int64_t divisor = (inS3 * inS4);
 
@@ -1877,7 +1879,7 @@ void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < outS1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -2168,11 +2170,11 @@ void ScaleUp4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
   ClearMemSecret1(size, reshapedArr);
 }
 
-void ScaleDown1(int64_t s1, uint64_t *arr, int64_t sf) {
-  ScaleDown(s1, arr, sf);
+void ScaleDown1(int64_t s1, uint64_t *arr, int64_t sf, int task_number) {
+  ScaleDown(s1, arr, sf, task_number);
 }
 
-void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
+void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf, int task_number) {
 
   int64_t size = (s1 * s2);
 
@@ -2185,7 +2187,7 @@ void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
           Arr2DIdxRowM(arr, s1, s2, i1, i2);
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
 
@@ -2197,7 +2199,7 @@ void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
   ClearMemSecret1(size, reshapedArr);
 }
 
-void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
+void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf, int task_number) {
 
   int64_t size = ((s1 * s2) * s3);
 
@@ -2212,7 +2214,7 @@ void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -2227,7 +2229,7 @@ void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
 }
 
 void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
-                int64_t sf) {
+                int64_t sf, int task_number) {
 
   int64_t size = (((s1 * s2) * s3) * s4);
 
@@ -2245,7 +2247,7 @@ void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -2260,159 +2262,6 @@ void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
     }
   }
   ClearMemSecret1(size, reshapedArr);
-}
-
-#include <iostream>
-#include <vector>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <queue>
-#include <functional>
-#include <atomic>
-#include <tuple>
-
-// Define a class to handle layer processing
-class LayerProcessor {
-public:
-    LayerProcessor(std::function<void(uint64_t*, uint64_t**, int)> layerFunc, size_t initialPendingTasks)
-        : layerFunc(layerFunc), stop(false), pendingTasks(initialPendingTasks) {}
-
-    void addTask(uint64_t* input, int task_number
-  ) {
-        uint64_t* output = nullptr; // Initialize output pointer
-        {
-          std::unique_lock<std::mutex> lock(mtx);
-          std::cerr << "Put in " << *input << std::endl;
-          tasks.push(std::make_tuple(input, &output, task_number
-        
-    ));
-        }
-        cv.notify_one();
-    }
-
-    void start() {
-      worker = std::thread([this]() {
-        while (true) {
-          std::tuple<uint64_t*, uint64_t**, int> task;
-          {
-            std::unique_lock<std::mutex> lock(mtx);
-            cv.wait(lock, [this]() { return !tasks.empty() || stop; });
-            if (stop && tasks.empty()) {
-              break;
-            }
-            task = tasks.front();
-            tasks.pop();
-          }
-          std::cerr << "task first " << *std::get<0>(task) << std::endl;
-          std::cerr << "task number " << std::get<2>(task) << std::endl;
-          layerFunc(std::get<0>(task), std::get<1>(task), std::get<2>(task));
-          if (nextLayerProcessor) {
-              nextLayerProcessor->addTask(*std::get<1>(task), std::get<2>(task)); // Pass current output as next input
-          }
-          {
-            std::unique_lock<std::mutex> lock(mtx);
-            pendingTasks -= 1;
-            if (pendingTasks == 0) {
-              cv.notify_all(); // Notify that pendingTasks is zero
-            }
-          }
-        }
-      });
-    }
-
-    void setNextLayerProcessor(LayerProcessor* nextProcessor) {
-      nextLayerProcessor = nextProcessor;
-    }
-
-    size_t getPendingTasks() const {
-      return pendingTasks.load();
-    }
-
-    void stopProcessing() {
-
-      std::cerr << "batch size " << im_batch_size << std::endl;
-      std::cerr << "num pending " << pendingTasks << std::endl;
-
-      {
-        std::unique_lock<std::mutex> lock(mtx);
-        stop = true;
-        cv.notify_all();
-      }
-      if (worker.joinable()) {
-        worker.join();
-      }
-    }
-
-    std::mutex mtx;
-    bool stop;
-
-private:
-    std::function<void(uint64_t*, uint64_t**, int)> layerFunc;
-    std::queue<std::tuple<uint64_t*, uint64_t**, int>> tasks;
-    std::thread worker;
-    std::condition_variable cv;
-    LayerProcessor* nextLayerProcessor = nullptr;
-    std::atomic<size_t> pendingTasks;
-};
-
-// Function to load inputs for CLIENT or SERVER
-std::vector<uint64_t*> loadInput(int im_batch_size) {
-    std::vector<uint64_t*> images;
-
-    if (party == CLIENT) {
-      std::vector<std::string> filenames;
-      std::string line;
-
-      // Read all filenames from stdin
-      while (std::getline(std::cin, line)) {
-          filenames.push_back(line);
-      }
-
-      uint64_t __tmp_in_tmp0;
-
-      for (const std::string& filename : filenames) {
-          std::ifstream file(filename, std::ios::binary);
-          if (!file) {
-              std::cerr << "Failed to open file: " << filename << std::endl;
-              continue;
-          }
-
-          uint64_t* tmp0 = make_array<uint64_t>(1, 227, 227, 3);
-          std::cerr << "Loading input from " << filename << "..." << std::endl;
-
-          for (uint64_t i0 = 0; i0 < 1; i0++) {
-              for (uint64_t i1 = 0; i1 < 227; i1++) {
-                  for (uint64_t i2 = 0; i2 < 227; i2++) {
-                      for (uint64_t i3 = 0; i3 < 3; i3++) {
-                          file >> __tmp_in_tmp0;
-                          Arr4DIdxRowM(tmp0, 1, 227, 227, 3, i0, i1, i2, i3) = 1;
-                      }
-                  }
-              }
-          }
-          images.push_back(tmp0);
-          file.close();
-      }
-    } else {
-        // SERVER party reads directly from stdin
-        for (int i = 0; i < im_batch_size; i++) {
-            uint64_t* tmp0 = make_array<uint64_t>(1, 227, 227, 3);
-            std::cerr << "Loading input from stdin..." << std::endl;
-            for (uint64_t i0 = 0; i0 < 1; i0++) {
-                for (uint64_t i1 = 0; i1 < 227; i1++) {
-                    for (uint64_t i2 = 0; i2 < 227; i2++) {
-                        for (uint64_t i3 = 0; i3 < 3; i3++) {
-                            Arr4DIdxRowM(tmp0, 1, 227, 227, 3, i0, i1, i2, i3) = 0;
-                        }
-                    }
-                }
-            }
-            images.push_back(tmp0);
-        }
-    }
-
-    return images;
 }
 
 int main(int argc, char **argv) {
@@ -3236,8 +3085,8 @@ int main(int argc, char **argv) {
   std::cerr << "input loaded, starting computation..." << std::endl;
 
   auto layer1 = [tmp1, tmp2](uint64_t* input, uint64_t** output, int task_number) {
-    StartComputation();
-    std::cerr << "point 1" << std::endl;
+    StartComputation(task_number);
+    std::cerr << "layer 1 task " << task_number << std::endl;
     uint64_t *tmp53 =
         make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
   #if USE_CHEETAH
@@ -3258,8 +3107,6 @@ int main(int argc, char **argv) {
                     tmp2, tmp56);
     ClearMemSecret4((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64, tmp53);
 
-    std::cerr << "point 2" << std::endl;
-
     uint64_t *tmpout =
         make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
     memcpy(tmpout, tmp56, (int32_t)1 * (int32_t)113 * (int32_t)113 * (int32_t)64 * sizeof(uint64_t));
@@ -3270,24 +3117,22 @@ int main(int argc, char **argv) {
   };
 
   auto layer2 = [](uint64_t* input, uint64_t** output, int task_number) { 
-     std::cerr << "point 3" << std::endl;
+    std::cerr << "layer 2 task " << task_number << std::endl;
     uint64_t *tmp59 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
-    std::cerr << *input << std::endl;
     MaxPool((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)3,
             (int32_t)3, (int32_t)0, (int32_t)0, (int32_t)0, (int32_t)0,
             (int32_t)2, (int32_t)2, (int32_t)1, (int32_t)113, (int32_t)113,
             (int32_t)64, input, tmp59, task_number);
-    std::cerr << "tmp59" << *tmp59 << std::endl;
     ClearMemSecret4((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64, input);
+    std::cerr << "MaxPool passed " << task_number << std::endl;
 
     uint64_t *tmp61 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
     Relu4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, tmp59, tmp61,
           kScale, 1, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, tmp59);
-
-     std::cerr << "point 4" << std::endl;
+    std::cerr << "Relu layer 2 passed" << std::endl;
 
     uint64_t *tmpout =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
@@ -3299,12 +3144,14 @@ int main(int argc, char **argv) {
   };
 
   auto layer3 = [tmp3, tmp4](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 3 task " << task_number << std::endl;
     uint64_t *tmp63 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
     Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)1,
                   (int32_t)1, (int32_t)16, (int32_t)0, (int32_t)0, (int32_t)0,
                   (int32_t)0, (int32_t)1, (int32_t)1, input, tmp3, tmp63, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, input);
+    std::cerr << "Conv layer 3 passed" << std::endl;
 
     uint64_t *tmp66 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
@@ -3387,6 +3234,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer5 = [tmp9, tmp10](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 5 task " << task_number << std::endl;
     uint64_t *tmp91 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
     Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)128, (int32_t)1,
@@ -3475,6 +3323,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer7 = [](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 7 task " << task_number << std::endl;
     uint64_t *tmp119 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     MaxPool((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128, (int32_t)3,
@@ -3521,6 +3370,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer9 = [tmp17, tmp18, tmp19, tmp20](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 9 task " << task_number << std::endl;
     uint64_t *tmp129 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
@@ -3580,6 +3430,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer10 = [tmp21, tmp22](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 10 task " << task_number << std::endl;
     uint64_t *tmp149 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)256, (int32_t)1,
@@ -3609,6 +3460,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer11 = [tmp23, tmp24, tmp25, tmp26](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 11 task " << task_number << std::endl;
     uint64_t *tmp157 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
@@ -3668,6 +3520,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer12 = [](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 12 task " << task_number << std::endl;
     uint64_t *tmp177 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
     MaxPool((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)3,
@@ -3685,6 +3538,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer13 = [tmp27, tmp28](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 13 task " << task_number << std::endl;
     uint64_t *tmp179 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)1,
@@ -3714,6 +3568,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer14 = [tmp29, tmp30, tmp31, tmp32](uint64_t* input, uint64_t** output, int task_number) {
+    std::cerr << "layer 14 task " << task_number << std::endl;
     uint64_t *tmp187 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)1,
@@ -3726,6 +3581,8 @@ int main(int argc, char **argv) {
     MatAddBroadCast4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192, tmp187,
                     tmp30, tmp189);
     ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192, tmp187);
+
+    std::cerr << "layer 14 Conv2D passed, task " << task_number << std::endl;
 
     uint64_t *tmp192 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
@@ -4037,6 +3894,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer21 = [tmp51, tmp52](uint64_t* input, uint64_t** output, int task_number) {
+    std::cout << "Layer 21, task "<< task_number << std::endl;
     uint64_t *tmp291 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)1000);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, (int32_t)1,
@@ -4066,6 +3924,7 @@ int main(int argc, char **argv) {
   };
 
   auto layer22 = [](uint64_t* input, uint64_t** output, int task_number) {
+    std::cout << "Layer 22, task "<< task_number << std::endl;
     uint64_t *tmp299 =
         make_array<uint64_t>((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000);
     AvgPool((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000, (int32_t)13,
@@ -4082,7 +3941,7 @@ int main(int argc, char **argv) {
     ArgMax3((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1,
             (int32_t)1, (int32_t)1000, tmp299, tmp301, tmp302, task_number);
     ClearMemPublic(tmp301);
-    EndComputation();
+    EndComputation(task_number);
     std::cerr << "Finished0" << std::endl;
 
     std::vector<double> prediction_vector(1000);
@@ -4118,7 +3977,8 @@ int main(int argc, char **argv) {
         }
       }
     }
-    finalize();
+    ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1, tmp302);
+    finalize(task_number);
   };
 
   // Create LayerProcessor instances for each layer
@@ -4201,7 +4061,6 @@ int main(int argc, char **argv) {
     {
       std::unique_lock<std::mutex> lock(layer22Processor.mtx);
       if (layer22Processor.getPendingTasks() == 0) {
-        std::cerr << "HI!!! " << layer1Processor.getPendingTasks() << std::endl;
         break;
       }
     }
@@ -4263,14 +4122,12 @@ int main(int argc, char **argv) {
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)512, (int32_t)1000, tmp51);
   ClearMemSecret1((int32_t)1000, tmp52);
 
+  std::cout << "Finished!!!!!!" << std::endl;
+
   layer1Processor.stopProcessing();
-  std::cerr << "stopped 1" << std::endl;
   layer2Processor.stopProcessing();
-  std::cerr << "stopped 2" << std::endl;
   layer3Processor.stopProcessing();
-  std::cerr << "stopped 3" << std::endl;
   layer4Processor.stopProcessing();
-  std::cerr << "stopped 4" << std::endl;
   layer5Processor.stopProcessing();
   layer6Processor.stopProcessing();
   layer7Processor.stopProcessing();
@@ -4280,7 +4137,6 @@ int main(int argc, char **argv) {
   layer11Processor.stopProcessing();
   layer12Processor.stopProcessing();
   layer13Processor.stopProcessing();
-  std::cerr << "stopped 13" << std::endl;
   layer14Processor.stopProcessing();
   layer15Processor.stopProcessing();
   layer16Processor.stopProcessing();
@@ -4290,7 +4146,4 @@ int main(int argc, char **argv) {
   layer20Processor.stopProcessing();
   layer21Processor.stopProcessing();
   layer22Processor.stopProcessing();
-  std::cerr << "stopped 22" << std::endl;
-
-  return 0;
 }

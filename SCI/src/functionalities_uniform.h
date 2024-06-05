@@ -192,31 +192,35 @@ intType funcSigendDivIdeal(intType x, uint32_t y, int task_number) {
   }
 }
 
-void funcReLUThread(int tid, intType *outp, intType *inp, int numRelu,
+void funcReLUThread(int tid, intType *outp, intType *inp, int numRelu, int task_number,
                     uint8_t *drelu_res = nullptr, bool skip_ot = false,
                     bool doTrunc = false, bool approx = true) {
-  reluArr[tid]->relu(outp, inp, numRelu, drelu_res, skip_ot,
+  int start = (task_number - 1) * num_threads;
+  reluArr[tid + start]->relu(outp, inp, numRelu, drelu_res, skip_ot,
                      /*do_trunc*/ doTrunc, /*approx*/ approx);
 }
 
 void funcMaxpoolThread(int tid, int rows, int cols, intType *inpArr,
                        intType *maxi, intType *maxiIdx, int task_number) {
-  maxpoolArr[tid]->funcMaxMPC(rows, cols, inpArr, maxi, maxiIdx);
+  int start = (task_number - 1) * num_threads;
+  maxpoolArr[tid + start]->funcMaxMPC(rows, cols, inpArr, maxi, maxiIdx);
 }
 
 #ifdef SCI_OT
 void funcTruncateThread(int tid, int32_t size, intType *inpArr,
                         intType *outpArr, int32_t scalingF, int32_t bw,
-                        bool isSigned, uint8_t *msb) {
-  truncationArr[tid]->truncate(size, inpArr, outpArr, scalingF, bw, isSigned,
+                        bool isSigned, uint8_t *msb, int task_number) {
+  int start = (task_number - 1) * num_threads;
+  truncationArr[tid + start]->truncate(size, inpArr, outpArr, scalingF, bw, isSigned,
                                msb);
 }
 
 #if USE_CHEETAH
 void funcReLUTruncateThread(int tid, int32_t size, intType *inpArr,
                             intType *outpArr, int32_t scalingF, int32_t bw,
-                            bool isSigned) {
-  truncationArr[tid]->truncate_msb0(size, inpArr, outpArr, scalingF, bw,
+                            bool isSigned, int task_number) {
+  int start = (task_number - 1) * num_threads;
+  truncationArr[tid + start]->truncate_msb0(size, inpArr, outpArr, scalingF, bw,
                                     isSigned);
 }
 #endif
@@ -225,7 +229,7 @@ void funcReLUTruncateThread(int tid, int32_t size, intType *inpArr,
 
 #ifdef SCI_OT
 void funcMatmulThread(int tid, int N, int s1, int s2, int s3, intType *A,
-                      intType *B, intType *C, int partyWithAInAB_mul) {
+                      intType *B, intType *C, int partyWithAInAB_mul, int task_number) {
   assert(tid >= 0);
   int bucket_size = std::ceil(s2 / (double)N);
   int s2StartIdx = tid * bucket_size;                   // Inclusive
@@ -263,6 +267,7 @@ void funcMatmulThread(int tid, int N, int s1, int s2, int s3, intType *A,
   */
 
 #ifdef USE_LINEAR_UNIFORM
+  int start = (task_number - 1) * num_threads;
   assert(s2EndIdx > s2StartIdx);
   bool useBobAsSender = tid & 1;
   if (partyWithAInAB_mul == sci::BOB)
@@ -270,20 +275,20 @@ void funcMatmulThread(int tid, int N, int s1, int s2, int s3, intType *A,
   if (useBobAsSender) {
     // Odd tid, use Bob (holding B) as sender and Alice (holding A) as receiver
     if (party == partyWithAInAB_mul) {
-      multUniformArr[tid]->funcOTReceiverInputA(s1, (s2EndIdx - s2StartIdx), s3,
-                                                APtr, C, otInstanceArr[tid]);
+      multUniformArr[tid + start]->funcOTReceiverInputA(s1, (s2EndIdx - s2StartIdx), s3,
+                                                APtr, C, otInstanceArr[tid + start]);
     } else {
-      multUniformArr[tid]->funcOTSenderInputB(s1, (s2EndIdx - s2StartIdx), s3,
-                                              BPtr, C, otInstanceArr[tid]);
+      multUniformArr[tid + start]->funcOTSenderInputB(s1, (s2EndIdx - s2StartIdx), s3,
+                                              BPtr, C, otInstanceArr[tid + start]);
     }
   } else {
     // Even tid, use Bob (holding B) as receiver and Alice (holding A) as sender
     if (party == partyWithAInAB_mul) {
-      multUniformArr[tid]->funcOTSenderInputA(s1, (s2EndIdx - s2StartIdx), s3,
-                                              APtr, C, otInstanceArr[tid]);
+      multUniformArr[tid + start]->funcOTSenderInputA(s1, (s2EndIdx - s2StartIdx), s3,
+                                              APtr, C, otInstanceArr[tid + start]);
     } else {
-      multUniformArr[tid]->funcOTReceiverInputB(s1, (s2EndIdx - s2StartIdx), s3,
-                                                BPtr, C, otInstanceArr[tid]);
+      multUniformArr[tid + start]->funcOTReceiverInputB(s1, (s2EndIdx - s2StartIdx), s3,
+                                                BPtr, C, otInstanceArr[tid + start]);
     }
   }
 #else  // USE_LINEAR_UNIFORM
@@ -300,7 +305,7 @@ void funcMatmulThread(int tid, int N, int s1, int s2, int s3, intType *A,
       mode = MultMode::Alice_has_B;
   }
   if (s2EndIdx > s2StartIdx) {
-    multArr[tid]->matmul_cross_terms(s1, (s2EndIdx - s2StartIdx), s3, APtr,
+    multArr[tid + start]->matmul_cross_terms(s1, (s2EndIdx - s2StartIdx), s3, APtr,
                                      BPtr, C, bitlength, bitlength, bitlength,
                                      true, mode);
   } else {
@@ -311,18 +316,19 @@ void funcMatmulThread(int tid, int N, int s1, int s2, int s3, intType *A,
 }
 
 void funcDotProdThread(int tid, int N, int size, intType *multiplyArr,
-                       intType *inArr, intType *outArr,
+                       intType *inArr, intType *outArr, int task_number,
                        bool both_cross_terms = false) {
+  int start = (task_number - 1) * num_threads;
   if (size == 0)
     return;
   assert(tid >= 0);
   if (tid & 1) {
     MultMode mode = (both_cross_terms ? MultMode::None : MultMode::Bob_has_A);
-    multArr[tid]->hadamard_cross_terms(size, multiplyArr, inArr, outArr,
+    multArr[tid + start]->hadamard_cross_terms(size, multiplyArr, inArr, outArr,
                                        bitlength, bitlength, bitlength, mode);
   } else {
     MultMode mode = (both_cross_terms ? MultMode::None : MultMode::Alice_has_A);
-    multArr[tid]->hadamard_cross_terms(size, multiplyArr, inArr, outArr,
+    multArr[tid + start]->hadamard_cross_terms(size, multiplyArr, inArr, outArr,
                                        bitlength, bitlength, bitlength, mode);
   }
 }
@@ -481,7 +487,7 @@ void funcTruncateTwoPowerRing(int curParty, sci::NetIO *curio,
 #ifdef SCI_OT
 void funcTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
                                      int consSF, int bw, bool isSigned,
-                                     uint8_t *msbShare) {
+                                     uint8_t *msbShare, int task_number) {
   assert(size % 8 == 0);
 #ifdef MULTITHREADED_TRUNC
   std::thread truncThreads[num_threads];
@@ -504,13 +510,13 @@ void funcTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
 
     truncThreads[i] =
         std::thread(funcTruncateThread, i, curSize, inp + offset, outp + offset,
-                    consSF, bw, isSigned, msbShareArg);
+                    consSF, bw, isSigned, msbShareArg, task_number);
   }
   for (int i = 0; i < num_threads; ++i) {
     truncThreads[i].join();
   }
 #else
-  funcTruncateThread(0, size, inp, outp, consSF, bw, isSigned, msgShare);
+  funcTruncateThread(0, size, inp, outp, consSF, bw, isSigned, msgShare, task_number);
 #endif
 }
 #endif
@@ -519,7 +525,7 @@ void funcTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
 #if USE_CHEETAH
 void funcReLUTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
                                          int consSF, int32_t bw,
-                                         bool isSigned) {
+                                         bool isSigned, int task_number) {
   assert(size % 8 == 0);
 #ifdef MULTITHREADED_TRUNC
   std::thread truncThreads[num_threads];
@@ -538,13 +544,15 @@ void funcReLUTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
 
     truncThreads[i] =
         std::thread(funcReLUTruncateThread, i, curSize, inp + offset,
-                    outp + offset, consSF, bw, isSigned);
+                    outp + offset, consSF, bw, isSigned, task_number);
   }
+
+  std::cout << "Started all threads, task " << task_number << std::endl;
   for (int i = 0; i < num_threads; ++i) {
     truncThreads[i].join();
   }
 #else
-  funcReLUTruncateThread(0, size, inp, outp, consSF, bw, isSigned);
+  funcReLUTruncateThread(0, size, inp, outp, consSF, bw, isSigned, task_number);
 #endif
 }
 #endif // USE_CHEETAH

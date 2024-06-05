@@ -73,7 +73,7 @@ extern MaxPoolProtocol<sci::NetIO, intType> *maxpool[MAX_BATCH];
 // Additional classes for Athos
 
 #ifdef SCI_OT
-extern MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform;
+extern MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform[MAX_BATCH];
 #elif defined(SCI_HE)
 extern FCField *he_fc[MAX_BATCH];
 extern ElemWiseProdField *he_prod[MAX_BATCH];

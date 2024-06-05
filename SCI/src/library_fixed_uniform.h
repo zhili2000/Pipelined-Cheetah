@@ -45,7 +45,7 @@ void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len, int tas
 signedIntType funcReconstruct2PCCons(intType x, int revealParty, int task_number);
 
 void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
-              const intType *B, intType *C, bool modelIsA);
+              const intType *B, intType *C, bool modelIsA, int task_number);
 
 void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
                    signedIntType CI, signedIntType FH, signedIntType FW,
@@ -61,15 +61,15 @@ void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
                         signedIntType zPadHRight, signedIntType zPadWLeft,
                         signedIntType zPadWRight, signedIntType strideH,
                         signedIntType strideW, signedIntType G,
-                        intType *inputArr, intType *filterArr, intType *outArr);
+                        intType *inputArr, intType *filterArr, intType *outArr, int task_number);
 
 void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
-                                intType *multArrVec, intType *outputArr);
+                                intType *multArrVec, intType *outputArr, int task_number);
 
 #if USE_CHEETAH 
 void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C, 
                const intType *inputAr, const intType *scales, const intType *bias, 
-               intType *outArr);
+               intType *outArr, int task_number);
 #endif
 
 void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr, int task_number);
@@ -89,13 +89,13 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
              int32_t strideW, int32_t N1, int32_t imgH, int32_t imgW,
              int32_t C1, intType *inArr, intType *outArr, int task_number);
 
-void ScaleDown(int32_t size, intType *inArr, int32_t sf);
+void ScaleDown(int32_t size, intType *inArr, int32_t sf, int task_number);
 
 void ScaleUp(int32_t size, intType *arr, int32_t sf);
 
-void StartComputation();
+void StartComputation(int task_number);
 
-void EndComputation();
+void EndComputation(int task_number);
 
 intType SecretAdd(intType x, intType y);
 
@@ -104,10 +104,10 @@ intType SecretSub(intType x, intType y);
 intType SecretMult(intType x, intType y);
 
 void ElemWiseVectorPublicDiv(int32_t s1, intType *arr1, int32_t divisor,
-                             intType *outArr);
+                             intType *outArr, int task_number);
 
 void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
-                                    intType *multArrVec, intType *outputArr);
+                                    intType *multArrVec, intType *outputArr, int task_number);
 
 void Floor(int32_t s1, intType *inArr, intType *outArr, int32_t sf);
 

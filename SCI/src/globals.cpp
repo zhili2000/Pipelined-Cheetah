@@ -36,7 +36,7 @@ ReLUProtocol<sci::NetIO, intType> *relu[MAX_BATCH];
 MaxPoolProtocol<sci::NetIO, intType> *maxpool[MAX_BATCH];
 // Additional classes for Athos
 #ifdef SCI_OT
-MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform;
+MatMulUniform<sci::NetIO, intType, sci::IKNP<sci::NetIO>> *multUniform[MAX_BATCH];
 #endif
 
 #ifdef SCI_HE
@@ -62,7 +62,7 @@ sci::OTPack<sci::NetIO> *otpackArr[MAX_THREADS * MAX_BATCH];
 LinearOT *multArr[MAX_THREADS * MAX_BATCH];
 AuxProtocols *auxArr[MAX_THREADS * MAX_BATCH];
 Truncation *truncationArr[MAX_THREADS * MAX_BATCH];
-XTProtocol *xtArr[MAX_THREADS * MAX_BATCHS];
+XTProtocol *xtArr[MAX_THREADS * MAX_BATCH];
 MathFunctions *mathArr[MAX_THREADS * MAX_BATCH];
 #endif
 ReLUProtocol<sci::NetIO, intType> *reluArr[MAX_THREADS * MAX_BATCH];

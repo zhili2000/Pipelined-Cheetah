@@ -24,5 +24,5 @@ cmake .. -DCMAKE_BUILD_TYPE=Release -DSCI_BUILD_NETWORKS=ON -DOPENSSL_ROOT_DIR=/
 for net in sqnet
 do
      make ${net}-cheetah -j4 
-     make ${net}-SCI_HE -j4 
+     # make ${net}-SCI_HE -j4 
 done

@@ -9,7 +9,7 @@
 #include "globals.h"
 
 #define VERIFY_LAYERWISE
-#define LOG _LAYERWISE
+// #define LOG _LAYERWISE
 //#undef VERIFY_LAYERWISE // undefine this to turn OFF the verifcation
 //#undef LOG_LAYERWISE // undefine this to turn OFF the log
 
@@ -35,7 +35,7 @@ static inline uint64_t getRingElt(int64_t x) {
 
 extern uint64_t SecretAdd(uint64_t x, uint64_t y);
 
-#ifdef LOG_LAYERWISE
+// #ifdef LOG_LAYERWISE
 #include <vector>
 
 typedef std::vector<uint64_t> uint64_1D;
@@ -43,7 +43,7 @@ typedef std::vector<std::vector<uint64_t>> uint64_2D;
 typedef std::vector<std::vector<std::vector<uint64_t>>> uint64_3D;
 typedef std::vector<std::vector<std::vector<std::vector<uint64_t>>>> uint64_4D;
 
-extern void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len);
+extern void funcReconstruct2PCCons(signedIntType *y, const intType *x, int len, int task_number);
 
 // Helper functions for computing the ground truth
 // See `cleartext_library_fixed_uniform.h`
@@ -60,10 +60,10 @@ extern void MatMul2DEigen_pt(int64_t i, int64_t j, int64_t k, uint64_2D &A,
 
 extern void ElemWiseActModelVectorMult_pt(uint64_t s1, uint64_1D &arr1,
                                           uint64_1D &arr2, uint64_1D &outArr);
-#endif
+// #endif
 
 void MatMul2D(int32_t d0, int32_t d1, int32_t d2, const intType *mat_A,
-              const intType *mat_B, intType *mat_C, bool is_A_weight_matrix) {
+              const intType *mat_B, intType *mat_C, bool is_A_weight_matrix, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -87,7 +87,7 @@ void MatMul2D(int32_t d0, int32_t d1, int32_t d2, const intType *mat_A,
   auto input_mat = is_A_weight_matrix ? mat_B : mat_A;
 
   Tensor<intType> weight_matrix;
-  if (cheetah_linear->party() == SERVER) {
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
     // Transpose the weight matrix and convert the uint64_t to ring element
     weight_matrix.Reshape(meta.weight_shape);
     const size_t nrows = weight_shape.dim_size(0);
@@ -116,23 +116,23 @@ void MatMul2D(int32_t d0, int32_t d1, int32_t d2, const intType *mat_A,
     }
 
     Tensor<uint64_t> out_vec;
-    cheetah_linear->fc(input_vector, weight_matrix, meta, out_vec);
+    cheetah_linear[task_number - 1]->fc(input_vector, weight_matrix, meta, out_vec);
     std::copy_n(out_vec.data(), out_vec.shape().num_elements(),
                 mat_C + r * input_shape.cols());
   }
 
-  if (cheetah_linear->party() == SERVER) {
-    cheetah_linear->safe_erase(weight_matrix.data(),
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
+    cheetah_linear[task_number - 1]->safe_erase(weight_matrix.data(),
                                meta.weight_shape.num_elements());
   }
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  MatMulTimeInMilliSec += temp;
+  MatMulTimeInMilliSec[task_number - 1] += temp;
   std::cout << "Time in sec for current matmul = " << (temp / 1000.0)
             << std::endl;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  MatMulCommSent += curComm;
+  MatMulCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -150,16 +150,16 @@ void MatMul2D(int32_t d0, int32_t d1, int32_t d2, const intType *mat_A,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, A, s1 * s2);
-    funcReconstruct2PCCons(nullptr, B, s2 * s3);
-    funcReconstruct2PCCons(nullptr, C, s1 * s3);
+    funcReconstruct2PCCons(nullptr, A, s1 * s2, task_number);
+    funcReconstruct2PCCons(nullptr, B, s2 * s3, task_number);
+    funcReconstruct2PCCons(nullptr, C, s1 * s3, task_number);
   } else {
     signedIntType *VA = new signedIntType[s1 * s2];
-    funcReconstruct2PCCons(VA, A, s1 * s2);
+    funcReconstruct2PCCons(VA, A, s1 * s2, task_number);
     signedIntType *VB = new signedIntType[s2 * s3];
-    funcReconstruct2PCCons(VB, B, s2 * s3);
+    funcReconstruct2PCCons(VB, B, s2 * s3, task_number);
     signedIntType *VC = new signedIntType[s1 * s3];
-    funcReconstruct2PCCons(VC, C, s1 * s3);
+    funcReconstruct2PCCons(VC, C, s1 * s3, task_number);
 
     std::vector<std::vector<uint64_t>> VAvec;
     std::vector<std::vector<uint64_t>> VBvec;
@@ -219,6 +219,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
 #endif
+  std::cout << "Conv2DWrapper, task number: " << task_number << std::endl;
 
   if (zPadWLeft < zPadWRight) {
     std::swap(zPadWLeft, zPadWRight);
@@ -250,6 +251,8 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
       }
     }
   }
+
+  std::cout << "Conv2DWrapper, point 1, task number: " << task_number << std::endl;
 
   const int npads = zPadHLeft + zPadHRight + zPadWLeft + zPadWRight;
   meta.padding = npads == 0 ? gemini::Padding::VALID : gemini::Padding::SAME;
@@ -321,16 +324,16 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
 #endif  // SCI_HE
 
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inputArr, N * H * W * CI);
-    funcReconstruct2PCCons(nullptr, filterArr, FH * FW * CI * CO);
-    funcReconstruct2PCCons(nullptr, outArr, N * newH * newW * CO);
+    funcReconstruct2PCCons(nullptr, inputArr, N * H * W * CI, task_number);
+    funcReconstruct2PCCons(nullptr, filterArr, FH * FW * CI * CO, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, N * newH * newW * CO, task_number);
   } else {
     signedIntType *VinputArr = new signedIntType[N * H * W * CI];
-    funcReconstruct2PCCons(VinputArr, inputArr, N * H * W * CI);
+    funcReconstruct2PCCons(VinputArr, inputArr, N * H * W * CI, task_number);
     signedIntType *VfilterArr = new signedIntType[FH * FW * CI * CO];
-    funcReconstruct2PCCons(VfilterArr, filterArr, FH * FW * CI * CO);
+    funcReconstruct2PCCons(VfilterArr, filterArr, FH * FW * CI * CO, task_number);
     signedIntType *VoutputArr = new signedIntType[N * newH * newW * CO];
-    funcReconstruct2PCCons(VoutputArr, outArr, N * newH * newW * CO);
+    funcReconstruct2PCCons(VoutputArr, outArr, N * newH * newW * CO, task_number);
 
     std::vector<std::vector<std::vector<std::vector<uint64_t>>>> VinputVec;
     VinputVec.resize(N, std::vector<std::vector<std::vector<uint64_t>>>(
@@ -422,7 +425,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
 
 void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C,
                const intType *inputArr, const intType *scales,
-               const intType *bias, intType *outArr) {
+               const intType *bias, intType *outArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -440,7 +443,7 @@ void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C,
 
   gemini::Tensor<intType> scale_vec;
   scale_vec.Reshape(gemini::TensorShape({C}));
-  if (cheetah_linear->party() == SERVER) {
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
     std::transform(scales, scales + C, scale_vec.data(), getRingElt);
   }
 
@@ -456,7 +459,7 @@ void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C,
       }
     }
 
-    cheetah_linear->bn_direct(in_tensor, scale_vec, meta, out_tensor);
+    cheetah_linear[task_number - 1]->bn_direct(in_tensor, scale_vec, meta, out_tensor);
 
     for (int32_t h = 0; h < H; ++h) {
       for (int32_t w = 0; w < W; ++w) {
@@ -468,23 +471,23 @@ void BatchNorm(int32_t B, int32_t H, int32_t W, int32_t C,
     }
   }
 
-  if (cheetah_linear->party() == SERVER) {
-    cheetah_linear->safe_erase(scale_vec.data(), scale_vec.NumElements());
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
+    cheetah_linear[task_number - 1]->safe_erase(scale_vec.data(), scale_vec.NumElements());
   }
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  BatchNormInMilliSec += temp;
+  BatchNormInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  BatchNormCommSent += curComm;
+  BatchNormCommSent[task_number - 1] += curComm;
   std::cout << "Time in sec for current BN = [" << (temp / 1000.0) << "] sent ["
             << (curComm / 1024. / 1024.) << "] MB" << std::endl;
 #endif
 }
 
 void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
-                                intType *multArrVec, intType *outputArr) {
+                                intType *multArrVec, intType *outputArr, int task_number) {
 #ifdef LOG_LAYERWISE
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
@@ -502,7 +505,7 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
   gemini::Tensor<intType> in_vec;
   gemini::Tensor<intType> scale_vec;
   scale_vec.Reshape(meta.vec_shape);
-  if (cheetah_linear->party() == SERVER) {
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
     std::transform(multArrVec, multArrVec + size, scale_vec.data(), getRingElt);
   }
 
@@ -513,19 +516,19 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
     std::transform(inArr, inArr + size, in_vec.data(), getRingElt);
   }
   gemini::Tensor<intType> out_vec;
-  cheetah_linear->bn(in_vec, scale_vec, meta, out_vec);
+  cheetah_linear[task_number - 1]->bn(in_vec, scale_vec, meta, out_vec);
   std::copy_n(out_vec.data(), out_vec.shape().num_elements(), outputArr);
 
-  if (cheetah_linear->party() == SERVER) {
-    cheetah_linear->safe_erase(scale_vec.data(), scale_vec.NumElements());
+  if (cheetah_linear[task_number - 1]->party() == SERVER) {
+    cheetah_linear[task_number - 1]->safe_erase(scale_vec.data(), scale_vec.NumElements());
   }
 
 #ifdef LOG_LAYERWISE
   auto temp = TIMER_TILL_NOW;
-  BatchNormInMilliSec += temp;
+  BatchNormInMilliSec[task_number - 1] += temp;
   uint64_t curComm;
   FIND_ALL_IO_TILL_NOW(curComm);
-  BatchNormCommSent += curComm;
+  BatchNormCommSent[task_number - 1] += curComm;
 #endif
 
 #ifdef VERIFY_LAYERWISE
@@ -534,16 +537,16 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
   }
 
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, size);
-    funcReconstruct2PCCons(nullptr, multArrVec, size);
-    funcReconstruct2PCCons(nullptr, outputArr, size);
+    funcReconstruct2PCCons(nullptr, inArr, size, task_number);
+    funcReconstruct2PCCons(nullptr, multArrVec, size, task_number);
+    funcReconstruct2PCCons(nullptr, outputArr, size, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[size];
-    funcReconstruct2PCCons(VinArr, inArr, size);
+    funcReconstruct2PCCons(VinArr, inArr, size, task_number);
     signedIntType *VmultArr = new signedIntType[size];
-    funcReconstruct2PCCons(VmultArr, multArrVec, size);
+    funcReconstruct2PCCons(VmultArr, multArrVec, size, task_number);
     signedIntType *VoutputArr = new signedIntType[size];
-    funcReconstruct2PCCons(VoutputArr, outputArr, size);
+    funcReconstruct2PCCons(VoutputArr, outputArr, size, task_number);
 
     std::vector<uint64_t> VinVec(size);
     std::vector<uint64_t> VmultVec(size);

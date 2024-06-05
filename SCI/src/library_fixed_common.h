@@ -215,7 +215,7 @@ static void Conv2DGroup(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t FH,
                         int32_t zPadHRight, int32_t zPadWLeft,
                         int32_t zPadWRight, int32_t strideH, int32_t strideW,
                         int32_t G, uint64_t *inputArr, uint64_t *filterArr,
-                        uint64_t *outArr) {
+                        uint64_t *outArr, int task_number) {
 
   int32_t CIG = (CI / G);
 
@@ -248,7 +248,7 @@ static void Conv2DGroup(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t FH,
                             reshapedIPRows, reshapedIPCols, inputArr,
                             inputReshaped);
     MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-             filterReshaped, inputReshaped, matmulOP, 1);
+             filterReshaped, inputReshaped, matmulOP, 1, task_number);
     Conv2DReshapeMatMulOPGroup(N, outH, outW, CO, g, G, matmulOP, outArr);
     ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
     ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);

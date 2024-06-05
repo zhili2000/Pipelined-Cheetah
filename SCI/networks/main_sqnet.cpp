@@ -508,7 +508,7 @@ void Conv2D(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH, int64_t FW,
                      zPadWRight, strideH, strideW, reshapedIPRows,
                      reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, 1);
   Conv2DReshapeMatMulOP(N, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -722,7 +722,7 @@ void Conv2DGroup(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH,
                             reshapedIPRows, reshapedIPCols, inputArr,
                             inputReshaped);
     MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-             filterReshaped, inputReshaped, matmulOP, 1);
+             filterReshaped, inputReshaped, matmulOP, 1, 1);
     Conv2DReshapeMatMulOPGroup(N, outH, outW, CO, g, G, matmulOP, outArr);
     ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
     ClearMemSecret2(reshapedFilterRows, reshapedIPCols, matmulOP);
@@ -879,7 +879,7 @@ void Conv3D(int64_t N, int64_t D, int64_t H, int64_t W, int64_t CI, int64_t FD,
                      strideH, strideW, reshapedIPRows, reshapedIPCols, inputArr,
                      inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, 1);
   Conv3DReshapeMatMulOP(N, newD, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1102,7 +1102,7 @@ void ConvTranspose2D(int64_t N, int64_t HPrime, int64_t WPrime, int64_t CI,
                               strideW, reshapedIPRows, reshapedIPCols, inputArr,
                               inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, 1);
   ConvTranspose2DReshapeMatMulOP(N, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1258,7 +1258,7 @@ void ConvTranspose3D(int64_t N, int64_t DPrime, int64_t HPrime, int64_t WPrime,
       zPadTrHLeft, zPadTrHRight, zPadTrWLeft, zPadTrWRight, strideD, strideH,
       strideW, reshapedIPRows, reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, 1);
   Conv3DReshapeMatMulOP(N, D, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1579,9 +1579,9 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, 1);
   if ((multExprScaleDownSf > (int32_t)0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, 1);
   }
 
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s4);
@@ -1644,9 +1644,9 @@ void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, 1);
   if ((multExprScaleDownSf > (int32_t)0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, 1);
   }
 
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s5);
@@ -1702,7 +1702,7 @@ void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
 
@@ -1742,7 +1742,7 @@ void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -1792,7 +1792,7 @@ void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -1840,7 +1840,7 @@ void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, 1);
   for (uint64_t i1 = (int32_t)0; i1 < outS1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -1875,7 +1875,7 @@ void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, 1);
   for (uint64_t i1 = (int32_t)0; i1 < outS1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -1888,7 +1888,7 @@ void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
 
 void ArgMax1(int64_t outArrS1, int64_t inArrS1, int64_t inArrS2,
              uint64_t *inArr, int64_t dim, uint64_t *outArr) {
-  ArgMax(inArrS1, inArrS2, inArr, outArr);
+  ArgMax(inArrS1, inArrS2, inArr, outArr, 1);
 }
 
 void ArgMax3(int64_t outs1, int64_t outs2, int64_t outs3, int64_t ins1,
@@ -1912,7 +1912,7 @@ void ArgMax3(int64_t outs1, int64_t outs2, int64_t outs3, int64_t ins1,
       }
     }
   }
-  ArgMax(size, ins4, reshapedInArr, reshapedOutArr);
+  ArgMax(size, ins4, reshapedInArr, reshapedOutArr, 1);
   for (uint64_t i1 = (int32_t)0; i1 < ins1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < ins2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < ins3; i3++) {
@@ -1943,7 +1943,7 @@ void Relu2(int64_t s1, int64_t s2, uint64_t *inArr, uint64_t *outArr,
           Arr2DIdxRowM(inArr, s1, s2, i1, i2);
     }
   }
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
 
@@ -1977,7 +1977,7 @@ void Relu4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *inArr,
       }
     }
   }
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -2022,7 +2022,7 @@ void Relu5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
       }
     }
   }
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -2167,7 +2167,7 @@ void ScaleUp4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
 }
 
 void ScaleDown1(int64_t s1, uint64_t *arr, int64_t sf) {
-  ScaleDown(s1, arr, sf);
+  ScaleDown(s1, arr, sf, 1);
 }
 
 void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
@@ -2183,7 +2183,7 @@ void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
           Arr2DIdxRowM(arr, s1, s2, i1, i2);
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
 
@@ -2210,7 +2210,7 @@ void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -2243,7 +2243,7 @@ void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, 1);
   for (uint64_t i1 = (int32_t)0; i1 < s1; i1++) {
     for (uint64_t i2 = (int32_t)0; i2 < s2; i2++) {
       for (uint64_t i3 = (int32_t)0; i3 < s3; i3++) {
@@ -3094,13 +3094,13 @@ int main(int argc, char **argv) {
     Arr1DIdxRowM(tmp52, (int32_t)1000, i0) =
         (party == SERVER) ? __tmp_in_tmp52 : 0;
   }
-  StartComputation();
+  StartComputation(1);
 
   uint64_t *tmp53 =
       make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)227, (int32_t)227, (int32_t)3, (int32_t)3,
                 (int32_t)3, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)2, (int32_t)2, tmp0, tmp1, tmp53);
+                (int32_t)0, (int32_t)2, (int32_t)2, tmp0, tmp1, tmp53, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)3, (int32_t)64, tmp1);
   ClearMemSecret4((int32_t)1, (int32_t)227, (int32_t)227, (int32_t)3, tmp0);
 
@@ -3117,7 +3117,7 @@ int main(int argc, char **argv) {
   MaxPool((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)3,
           (int32_t)3, (int32_t)0, (int32_t)0, (int32_t)0, (int32_t)0,
           (int32_t)2, (int32_t)2, (int32_t)1, (int32_t)113, (int32_t)113,
-          (int32_t)64, tmp56, tmp59);
+          (int32_t)64, tmp56, tmp59, 1);
   ClearMemSecret4((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64, tmp56);
 
   uint64_t *tmp61 =
@@ -3130,7 +3130,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)1,
                 (int32_t)1, (int32_t)16, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp61, tmp3, tmp63);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp61, tmp3, tmp63, 1);
   ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, tmp61);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)64, (int32_t)16, tmp3);
 
@@ -3152,7 +3152,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, (int32_t)1,
                 (int32_t)1, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp69, tmp5, tmp71);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp69, tmp5, tmp71, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)16, (int32_t)64, tmp5);
 
   uint64_t *tmp73 =
@@ -3173,7 +3173,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, (int32_t)3,
                 (int32_t)3, (int32_t)64, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp69, tmp7, tmp78);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp69, tmp7, tmp78, 1);
   ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, tmp69);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)16, (int32_t)64, tmp7);
 
@@ -3206,7 +3206,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)128, (int32_t)1,
                 (int32_t)1, (int32_t)16, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp87, tmp9, tmp91);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp87, tmp9, tmp91, 1);
   ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)128, tmp87);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)128, (int32_t)16, tmp9);
 
@@ -3228,7 +3228,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, (int32_t)1,
                 (int32_t)1, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp97, tmp11, tmp99);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp97, tmp11, tmp99, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)16, (int32_t)64, tmp11);
 
   uint64_t *tmp101 =
@@ -3249,7 +3249,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, (int32_t)3,
                 (int32_t)3, (int32_t)64, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp97, tmp13, tmp106);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp97, tmp13, tmp106, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)16, (int32_t)64, tmp13);
   ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16, tmp97);
 
@@ -3283,14 +3283,14 @@ int main(int argc, char **argv) {
   MaxPool((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128, (int32_t)3,
           (int32_t)3, (int32_t)0, (int32_t)0, (int32_t)0, (int32_t)0,
           (int32_t)2, (int32_t)2, (int32_t)1, (int32_t)56, (int32_t)56,
-          (int32_t)128, tmp115, tmp119);
+          (int32_t)128, tmp115, tmp119, 1);
   ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)128, tmp115);
 
   uint64_t *tmp121 =
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128, (int32_t)1,
                 (int32_t)1, (int32_t)32, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp119, tmp15, tmp121);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp119, tmp15, tmp121, 1);
   ClearMemSecret4((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128, tmp119);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)128, (int32_t)32, tmp15);
 
@@ -3312,7 +3312,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
                 (int32_t)1, (int32_t)128, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp127, tmp17, tmp129);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp127, tmp17, tmp129, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)32, (int32_t)128, tmp17);
 
   uint64_t *tmp131 =
@@ -3333,7 +3333,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)3,
                 (int32_t)3, (int32_t)128, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp127, tmp19, tmp136);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp127, tmp19, tmp136, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)32, (int32_t)128, tmp19);
   ClearMemSecret4((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, tmp127);
 
@@ -3366,7 +3366,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)256, (int32_t)1,
                 (int32_t)1, (int32_t)32, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp145, tmp21, tmp149);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp145, tmp21, tmp149, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)256, (int32_t)32, tmp21);
   ClearMemSecret4((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)256, tmp145);
 
@@ -3388,7 +3388,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
                 (int32_t)1, (int32_t)128, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp155, tmp23, tmp157);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp155, tmp23, tmp157, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)32, (int32_t)128, tmp23);
 
   uint64_t *tmp159 =
@@ -3409,7 +3409,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
   Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)3,
                 (int32_t)3, (int32_t)128, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp155, tmp25, tmp164);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp155, tmp25, tmp164, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)32, (int32_t)128, tmp25);
   ClearMemSecret4((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, tmp155);
 
@@ -3443,14 +3443,14 @@ int main(int argc, char **argv) {
   MaxPool((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)3,
           (int32_t)3, (int32_t)0, (int32_t)0, (int32_t)0, (int32_t)0,
           (int32_t)2, (int32_t)2, (int32_t)1, (int32_t)27, (int32_t)27,
-          (int32_t)256, tmp173, tmp177);
+          (int32_t)256, tmp173, tmp177, 1);
   ClearMemSecret4((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)256, tmp173);
 
   uint64_t *tmp179 =
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)1,
                 (int32_t)1, (int32_t)48, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp177, tmp27, tmp179);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp177, tmp27, tmp179, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, tmp177);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)256, (int32_t)48, tmp27);
 
@@ -3472,7 +3472,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)1,
                 (int32_t)1, (int32_t)192, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp185, tmp29, tmp187);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp185, tmp29, tmp187, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)48, (int32_t)192, tmp29);
 
   uint64_t *tmp189 =
@@ -3493,7 +3493,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)3,
                 (int32_t)3, (int32_t)192, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp185, tmp31, tmp194);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp185, tmp31, tmp194, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, tmp185);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)48, (int32_t)192, tmp31);
 
@@ -3526,7 +3526,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)384, (int32_t)1,
                 (int32_t)1, (int32_t)48, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp203, tmp33, tmp207);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp203, tmp33, tmp207, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)384, tmp203);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)384, (int32_t)48, tmp33);
 
@@ -3548,7 +3548,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)1,
                 (int32_t)1, (int32_t)192, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp213, tmp35, tmp215);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp213, tmp35, tmp215, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)48, (int32_t)192, tmp35);
 
   uint64_t *tmp217 =
@@ -3569,7 +3569,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)3,
                 (int32_t)3, (int32_t)192, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp213, tmp37, tmp222);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp213, tmp37, tmp222, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, tmp213);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)48, (int32_t)192, tmp37);
 
@@ -3602,7 +3602,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)384, (int32_t)1,
                 (int32_t)1, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp231, tmp39, tmp235);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp231, tmp39, tmp235, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)384, tmp231);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)384, (int32_t)64, tmp39);
 
@@ -3624,7 +3624,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, (int32_t)1,
                 (int32_t)1, (int32_t)256, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp241, tmp41, tmp243);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp241, tmp41, tmp243, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)64, (int32_t)256, tmp41);
 
   uint64_t *tmp245 =
@@ -3645,7 +3645,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, (int32_t)3,
                 (int32_t)3, (int32_t)256, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp241, tmp43, tmp250);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp241, tmp43, tmp250, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)64, (int32_t)256, tmp43);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, tmp241);
 
@@ -3678,7 +3678,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, (int32_t)1,
                 (int32_t)1, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp259, tmp45, tmp263);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp259, tmp45, tmp263, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, tmp259);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)512, (int32_t)64, tmp45);
 
@@ -3700,7 +3700,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, (int32_t)1,
                 (int32_t)1, (int32_t)256, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp269, tmp47, tmp271);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp269, tmp47, tmp271, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)64, (int32_t)256, tmp47);
 
   uint64_t *tmp273 =
@@ -3721,7 +3721,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, (int32_t)3,
                 (int32_t)3, (int32_t)256, (int32_t)1, (int32_t)1, (int32_t)1,
-                (int32_t)1, (int32_t)1, (int32_t)1, tmp269, tmp49, tmp278);
+                (int32_t)1, (int32_t)1, (int32_t)1, tmp269, tmp49, tmp278, 1);
   ClearMemSecret4((int32_t)3, (int32_t)3, (int32_t)64, (int32_t)256, tmp49);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)64, tmp269);
 
@@ -3754,7 +3754,7 @@ int main(int argc, char **argv) {
       make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)1000);
   Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, (int32_t)1,
                 (int32_t)1, (int32_t)1000, (int32_t)0, (int32_t)0, (int32_t)0,
-                (int32_t)0, (int32_t)1, (int32_t)1, tmp287, tmp51, tmp291);
+                (int32_t)0, (int32_t)1, (int32_t)1, tmp287, tmp51, tmp291, 1);
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)512, (int32_t)1000, tmp51);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, tmp287);
 
@@ -3777,7 +3777,7 @@ int main(int argc, char **argv) {
   AvgPool((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000, (int32_t)13,
           (int32_t)13, (int32_t)0, (int32_t)0, (int32_t)0, (int32_t)0,
           (int32_t)1, (int32_t)1, (int32_t)1, (int32_t)13, (int32_t)13,
-          (int32_t)1000, tmp297, tmp299);
+          (int32_t)1000, tmp297, tmp299, 1);
   ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)1000, tmp297);
 
   int64_t tmp301 = (int32_t)3;
@@ -3787,11 +3787,11 @@ int main(int argc, char **argv) {
           (int32_t)1, (int32_t)1000, tmp299, tmp301, tmp302);
 
   ClearMemPublic(tmp301);
-  EndComputation();
+  EndComputation(1);
 
   std::vector<double> prediction_vector(1000);
   for (uint64_t i0 = 0; i0 < 1000; i0++) {
-	prediction_vector[i0] = funcReconstruct2PCCons(Arr1DIdxRowM(tmp299, 1000, i0), 2) 
+	prediction_vector[i0] = funcReconstruct2PCCons(Arr1DIdxRowM(tmp299, 1000, i0), 2, 1) 
 	  / std::pow(2., kScale);
   }
   ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000, tmp299);
@@ -3812,7 +3812,7 @@ int main(int argc, char **argv) {
       for (uint64_t i2 = (uint64_t)0; i2 < (int32_t)1; i2++) {
 		auto pred = funcReconstruct2PCCons(Arr3DIdxRowM(tmp302, (int32_t)1,
                                                      (int32_t)1, (int32_t)1, i0,
-                                                     i1, i2), 2);
+                                                     i1, i2), 2, 1);
 		if (party == CLIENT) {
 		  printf("predicted label = %lld\n", pred);
 		}

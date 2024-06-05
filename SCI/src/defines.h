@@ -22,7 +22,7 @@ SOFTWARE.
 #ifndef DEFINES_H___
 #define DEFINES_H___
 
-#define LOG_LAYERWISE
+// #define LOG_LAYERWISE
 // #define VERIFY_LAYERWISE
 #define USE_EIGEN
 // #define WRITE_LOG

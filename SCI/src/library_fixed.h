@@ -54,27 +54,27 @@ inline std::vector<int> divide_instances(
   return chunks_per_thread;
 }
 
-void initialize();
+void initialize(int task_number);
 
-void finalize();
+void finalize(int task_number);
 
-void reconstruct(int dim, uint64_t *x, uint64_t *y, int bw_x);
+void reconstruct(int dim, uint64_t *x, uint64_t *y, int bw_x, int task_number);
 
 void AdjustScaleShr(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
                     int32_t scale, int task_number);
 
 void AdjustScaleShr(int32_t I, int32_t J, int32_t scale, int64_t bwA,
-                    int64_t *A);
+                    int64_t *A, int task_number);
 
 void MatAdd(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
             int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp, int32_t shrA,
-            int32_t shrB, int32_t shrC, int32_t demote,
-            bool subroutine = false, int task_number = 1);
+            int32_t shrB, int32_t shrC, int32_t demote, int task_number,
+            bool subroutine = false);
 
 void MatAddBroadCast(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I,
                      int32_t J, int32_t bwA, int32_t bwB, int32_t bwC,
                      int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t shrC,
-                     int32_t demote, bool scalar_A = true);
+                     int32_t demote, int task_number, bool scalar_A = true);
 
 void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
                  int32_t bwA, int32_t bwB, int32_t bwC, int32_t bwTemp,
@@ -84,22 +84,22 @@ void AddOrSubCir(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
 void AddOrSubCir4D(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
                    int32_t shrB, int32_t shrC, bool add, int32_t demote,
                    int32_t bwA, int32_t bwB, int32_t bwTemp, int32_t bwC,
-                   int64_t *A, int64_t *B, int64_t *X);
+                   int64_t *A, int64_t *B, int64_t *X, int task_number);
 
 void Exp(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-         int32_t bwB, int32_t sA, int32_t sB);
+         int32_t bwB, int32_t sA, int32_t sB, int task_number);
 
 void Div(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
          int32_t bwA, int32_t bwB, int32_t bwC, int32_t sA, int32_t sB,
-         int32_t sC);
+         int32_t sC, int task_number);
 
 void ArgMax(uint64_t *A, int32_t I, int32_t J, int32_t bwA, int32_t bw_index,
-            uint64_t *index);
+            uint64_t *index, int task_number);
 
 void MaxPool2D(uint64_t *A, int32_t I, int32_t J, int32_t bwA, int32_t bwB,
-               uint64_t *B);
+               uint64_t *B, int task_number);
 
-void MaxPool2D(int I, int J, int bwA, int bwB, int64_t *A, int64_t *B);
+void MaxPool2D(int I, int J, int bwA, int bwB, int64_t *A, int64_t *B, int task_number);
 
 void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WF, int32_t CINF, int32_t COUTF, int32_t HOUT,
@@ -108,7 +108,7 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WDL, int32_t G, int32_t bwA, int32_t bwB, int32_t bwC,
                  int32_t bwTemp, int32_t shrA, int32_t shrB, int32_t H1,
                  int32_t H2, int32_t demote, uint64_t *A, uint64_t *B,
-                 uint64_t *C);
+                 uint64_t *C, int task_number);
 
 void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WF, int32_t CINF, int32_t COUTF, int32_t HOUT,
@@ -117,25 +117,25 @@ void Convolution(int32_t N, int32_t H, int32_t W, int32_t CIN, int32_t HF,
                  int32_t WDL, int32_t G, int32_t shrA, int32_t shrB, int32_t H1,
                  int32_t H2, int32_t demote, int32_t bwA, int32_t bwB,
                  int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B,
-                 int64_t *C, int64_t *tmp, bool verbose = true);
+                 int64_t *C, int64_t *tmp, int task_number, bool verbose = true);
 
 void ReLU(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-          int32_t bwB, uint64_t six, int32_t div);
+          int32_t bwB, uint64_t six, int32_t div, int task_number);
 void Relu6(int32_t N, int32_t H, int32_t W, int32_t C, int64_t six, int32_t div,
-           int32_t bwA, int32_t bwB, int64_t *A, int64_t *B);
+           int32_t bwA, int32_t bwB, int64_t *A, int64_t *B, int task_number);
 
 void BNorm(uint64_t *A, uint64_t *BNW, uint64_t *BNB, uint64_t *B, int32_t I,
            int32_t J, int32_t bwA, int32_t bwBNW, int32_t bwBNB, int32_t bwTemp,
-           int32_t bwB, int32_t shA, int32_t shBNB, int32_t shB);
+           int32_t bwB, int32_t shA, int32_t shBNB, int32_t shB, int task_number);
 
 void NormaliseL2(uint64_t *A, uint64_t *B, int32_t I, int32_t J, int32_t bwA,
-                 int32_t scaleA, int32_t shrA);
+                 int32_t scaleA, int32_t shrA, int task_number);
 void BNorm(int32_t I, int32_t J, int32_t shA, int32_t shBNB, int32_t shB,
            int32_t bwA, int32_t bwBNW, int32_t bwBNB, int32_t bwTemp,
-           int32_t bwB, int64_t *A, int64_t *BNW, int64_t *BNB, int64_t *B);
+           int32_t bwB, int64_t *A, int64_t *BNW, int64_t *BNB, int64_t *B, int task_number);
 
 void NormaliseL2(int32_t N, int32_t H, int32_t W, int32_t C, int32_t scaleA,
-                 int32_t shrA, int32_t bwA, int64_t *A, int64_t *B);
+                 int32_t shrA, int32_t bwA, int64_t *A, int64_t *B, int task_number);
 
 void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
             int32_t HF, int32_t WF, int32_t Cout, int32_t Hout, int32_t Wout,
@@ -152,9 +152,9 @@ void MBConv(int32_t N, int32_t H, int32_t W, int32_t Cin, int32_t Ct,
             int32_t bwUB1W, int32_t bwUB2W, int32_t bwUB3W, int64_t *A,
             int64_t *F1, int64_t *BN1W, int64_t *BN1B, int64_t *F2,
             int64_t *BN2W, int64_t *BN2B, int64_t *F3, int64_t *BN3W,
-            int64_t *BN3B, int64_t *C, int64_t *X, int64_t *T, int64_t *U);
+            int64_t *BN3B, int64_t *C, int64_t *X, int64_t *T, int64_t *U, int task_number);
 
-void output_vector(int64_t *x, int32_t I, int32_t J, int32_t bwX);
+void output_vector(int64_t *x, int32_t I, int32_t J, int32_t bwX, int task_number);
 
 /*
     MatAdd fucntion for EzPC compatibility followed by MatAdd
@@ -162,97 +162,97 @@ void output_vector(int64_t *x, int32_t I, int32_t J, int32_t bwX);
 */
 void MatAdd(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
             int64_t demote, int64_t bwA, int64_t bwB, int64_t bwTemp,
-            int64_t bwC, int64_t *A, int64_t *B, int64_t *C,
+            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, int task_number,
             bool verbose = true);
 
 void MatAdd4(int32_t N, int32_t H, int32_t W, int32_t C, int32_t shrA,
              int32_t shrB, int32_t shrC, int32_t demote, int32_t bwA,
              int32_t bwB, int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B,
-             int64_t *X);
+             int64_t *X, int task_number);
 
 /**/
 void MatSub(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t shrC,
             int64_t demote, int64_t bwA, int64_t bwB, int64_t bwTemp,
-            int64_t bwC, int64_t *A, int64_t *B, int64_t *C);
+            int64_t bwC, int64_t *A, int64_t *B, int64_t *C, int task_number);
 
 /**/
 void MatAddBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t A, int64_t *B,
-                      int64_t *C, bool verbose = true);
+                      int64_t *C, int task_number, bool verbose = true);
 
 /**/
 void MatAddBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t *A, int64_t B,
-                      int64_t *C, bool verbose = true);
+                      int64_t *C, int task_numbe, bool verbose = true);
 
 /**/
 void MatSubBroadCastA(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t A, int64_t *B,
-                      int64_t *C);
+                      int64_t *C, int task_number);
 
 /**/
 void MatSubBroadCastB(int64_t I, int64_t J, int64_t shrA, int64_t shrB,
                       int64_t shrC, int64_t demote, int64_t bwA, int64_t bwB,
                       int64_t bwTemp, int64_t bwC, int64_t *A, int64_t B,
-                      int64_t *C);
+                      int64_t *C, int task_number);
 
 /**/
 void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
             int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, uint64_t *A,
-            uint64_t *B, uint64_t *C);
+            uint64_t *B, uint64_t *C, int task_number);
 
 void MulCir(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
             int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, int64_t *A,
-            int64_t *B, int64_t *C);
+            int64_t *B, int64_t *C, int task_number);
 
 void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
             int64_t H1, int64_t H2, int64_t demote, int32_t bwA, int32_t bwB,
             int32_t bwTemp, int32_t bwC, int64_t *A, int64_t *B, int64_t *C,
-            int64_t *tmp, bool verbose = true);
+            int64_t *tmp, int task_number, bool verbose = true);
 
 void MatMul(int64_t I, int64_t K, int64_t J, int64_t shrA, int64_t shrB,
             int64_t H1, int64_t H2, int64_t demote, int32_t bwA, int32_t bwB,
             int32_t bwTemp, int32_t bwC, uint64_t *A, uint64_t *B, uint64_t *C,
-            uint64_t *tmp, bool verbose = true);
+            uint64_t *tmp, int task_number, bool verbose = true);
 
 /**/
 void ScalarMul(uint64_t *A, uint64_t *B, uint64_t *C, int32_t I, int32_t J,
                int32_t bwA, int32_t bwB, int32_t bwTemp, int32_t bwC,
-               int32_t shrA, int32_t shrB, int32_t demote);
+               int32_t shrA, int32_t shrB, int32_t demote, int task_number);
 
 void ScalarMul(int64_t I, int64_t J, int64_t shrA, int64_t shrB, int64_t demote,
                int64_t bwA, int64_t bwB, int64_t bwTemp, int64_t bwC, int64_t A,
-               int64_t *B, int64_t *C);
+               int64_t *B, int64_t *C, int task_number);
 
 /**/
 
 void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-             int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B);
+             int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B, int task_number);
 
 void Sigmoid(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-             int64_t bwA, int64_t bwB, int64_t *A, int64_t *B);
+             int64_t bwA, int64_t bwB, int64_t *A, int64_t *B, int task_number);
 
 /**/
 void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, int64_t *A, int64_t *B);
+          int64_t bwA, int64_t bwB, int64_t *A, int64_t *B, int task_number);
 
 void TanH(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B);
+          int64_t bwA, int64_t bwB, uint64_t *A, uint64_t *B, int task_number);
 
 void Sqrt(int64_t I, int64_t J, int64_t scale_in, int64_t scale_out,
-          int64_t bwA, int64_t bwB, bool inverse, uint64_t *A, uint64_t *B);
+          int64_t bwA, int64_t bwB, bool inverse, uint64_t *A, uint64_t *B, int task_number);
 
-void reconstruct(int64_t *A, int64_t *B, int32_t I, int32_t J, int bwA);
+void reconstruct(int64_t *A, int64_t *B, int32_t I, int32_t J, int bwA, int task_number);
 
 // template<class int64_t>
 void AdjustScaleShl(int64_t I, int64_t J, int64_t scale, int64_t *A);
 
 // template<class int64_t>
 void ArgMax(int64_t I, int64_t J, int32_t bwA, int32_t bw_index, int64_t *A,
-            int64_t *index);
+            int64_t *index, int task_number);
 
 void typecast_to_uint64(int64_t *A, uint64_t *A64, int32_t I, int32_t J,
                         int32_t bwA);
@@ -261,10 +261,10 @@ void typecast_from_uint64(uint64_t *A64, int64_t *A, int32_t I, int32_t J,
                           int bwA);
 
 void Exp(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t bwA,
-         int64_t *A, int64_t *B);
+         int64_t *A, int64_t *B, int task_number);
 
 void Div(int32_t I, int32_t J, int32_t shrA, int32_t shrB, int32_t shrC,
-         int32_t bwA, int64_t *A, int64_t *B, int64_t *C);
+         int32_t bwA, int64_t *A, int64_t *B, int64_t *C, int task_number);
 
 // Athos Wrappers
 #ifdef SCI_OT

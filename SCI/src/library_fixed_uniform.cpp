@@ -26,7 +26,7 @@ SOFTWARE.
 #include "functionalities_uniform.h"
 #include "library_fixed_common.h"
 
-#define LOG_LAYERWISE
+// #define LOG_LAYERWISE
 #define VERIFY_LAYERWISE
 #undef VERIFY_LAYERWISE // undefine this to turn OFF the verifcation
 // #undef LOG_LAYERWISE // undefine this to turn OFF the log
@@ -65,23 +65,23 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
 #ifdef USE_LINEAR_UNIFORM
   if (partyWithAInAB_mul == sci::ALICE) {
     if (party == sci::ALICE) {
-      multUniform->funcOTSenderInputA(s1, s2, s3, A, C, iknpOT);
+      multUniform[task_number - 1]->funcOTSenderInputA(s1, s2, s3, A, C, iknpOT);
     } else {
-      multUniform->funcOTReceiverInputB(s1, s2, s3, B, C, iknpOT);
+      multUniform[task_number - 1]->funcOTReceiverInputB(s1, s2, s3, B, C, iknpOT);
     }
   } else {
     if (party == sci::BOB) {
-      multUniform->funcOTSenderInputA(s1, s2, s3, A, C, iknpOTRoleReversed);
+      multUniform[task_number - 1]->funcOTSenderInputA(s1, s2, s3, A, C, iknpOTRoleReversed);
     } else {
-      multUniform->funcOTReceiverInputB(s1, s2, s3, B, C, iknpOTRoleReversed);
+      multUniform[task_number - 1]->funcOTReceiverInputB(s1, s2, s3, B, C, iknpOTRoleReversed);
     }
   }
 #else  // USE_LINEAR_UNIFORM
   if (modelIsA) {
-    mult->matmul_cross_terms(s1, s2, s3, A, B, C, bitlength, bitlength,
+    mult[task_number - 1]->matmul_cross_terms(s1, s2, s3, A, B, C, bitlength, bitlength,
                              bitlength, true, MultMode::Alice_has_A);
   } else {
-    mult->matmul_cross_terms(s1, s2, s3, A, B, C, bitlength, bitlength,
+    mult[task_number - 1]->matmul_cross_terms(s1, s2, s3, A, B, C, bitlength, bitlength,
                              bitlength, true, MultMode::Alice_has_B);
   }
 #endif // USE_LINEAR_UNIFORM
@@ -93,9 +93,9 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
     // Add also A*own share of B
     intType *CTemp = new intType[s1 * s3];
 #ifdef USE_LINEAR_UNIFORM
-    multUniform->ideal_func(s1, s2, s3, A, B, CTemp);
+    multUniform[task_number - 1]->ideal_func(s1, s2, s3, A, B, CTemp);
 #else  // USE_LINEAR_UNIFORM
-    mult->matmul_cleartext(s1, s2, s3, A, B, CTemp, true);
+    mult[task_number - 1]->matmul_cleartext(s1, s2, s3, A, B, CTemp, true);
 #endif // USE_LINEAR_UNIFORM
     sci::elemWiseAdd<intType>(s1 * s3, C, CTemp, C);
     delete[] CTemp;
@@ -123,7 +123,7 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
     C_ans_arr[i] = new intType[s1 * s3];
     matmulThreads[i] = std::thread(funcMatmulThread, i, required_num_threads,
                                    s1, s2, s3, (intType *)A, (intType *)B,
-                                   (intType *)C_ans_arr[i], partyWithAInAB_mul);
+                                   (intType *)C_ans_arr[i], partyWithAInAB_mul, task_number);
   }
   for (int i = 0; i < required_num_threads; i++) {
     matmulThreads[i].join();
@@ -141,9 +141,9 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
   if (party == sci::ALICE) {
     intType *CTemp = new intType[s1 * s3];
 #ifdef USE_LINEAR_UNIFORM
-    multUniform->ideal_func(s1, s2, s3, A, B, CTemp);
+    multUniform[task_number - 1]->ideal_func(s1, s2, s3, A, B, CTemp);
 #else  // USE_LINEAR_UNIFORM
-    mult->matmul_cleartext(s1, s2, s3, A, B, CTemp, true);
+    mult[task_number - 1]->matmul_cleartext(s1, s2, s3, A, B, CTemp, true);
 #endif // USE_LINEAR_UNIFORM
     sci::elemWiseAdd<intType>(s1 * s3, C, CTemp, C);
     delete[] CTemp;
@@ -214,16 +214,16 @@ void MatMul2D(int32_t s1, int32_t s2, int32_t s3, const intType *A,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, A, s1 * s2);
-    funcReconstruct2PCCons(nullptr, B, s2 * s3);
-    funcReconstruct2PCCons(nullptr, C, s1 * s3);
+    funcReconstruct2PCCons(nullptr, A, s1 * s2, task_number);
+    funcReconstruct2PCCons(nullptr, B, s2 * s3, task_number);
+    funcReconstruct2PCCons(nullptr, C, s1 * s3, task_number);
   } else {
     signedIntType *VA = new signedIntType[s1 * s2];
-    funcReconstruct2PCCons(VA, A, s1 * s2);
+    funcReconstruct2PCCons(VA, A, s1 * s2, task_number);
     signedIntType *VB = new signedIntType[s2 * s3];
-    funcReconstruct2PCCons(VB, B, s2 * s3);
+    funcReconstruct2PCCons(VB, B, s2 * s3, task_number);
     signedIntType *VC = new signedIntType[s1 * s3];
-    funcReconstruct2PCCons(VC, C, s1 * s3);
+    funcReconstruct2PCCons(VC, C, s1 * s3, task_number);
 
     std::vector<std::vector<uint64_t>> VAvec;
     std::vector<std::vector<uint64_t>> VBvec;
@@ -270,7 +270,7 @@ static void Conv2D(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t FH,
                    int32_t FW, int32_t CO, int32_t zPadHLeft,
                    int32_t zPadHRight, int32_t zPadWLeft, int32_t zPadWRight,
                    int32_t strideH, int32_t strideW, uint64_t *inputArr,
-                   uint64_t *filterArr, uint64_t *outArr) {
+                   uint64_t *filterArr, uint64_t *outArr, int task_number) {
   int32_t reshapedFilterRows = CO;
 
   int32_t reshapedFilterCols = ((FH * FW) * CI);
@@ -297,7 +297,7 @@ static void Conv2D(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t FH,
                      zPadWRight, strideH, strideW, reshapedIPRows,
                      reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv2DReshapeMatMulOP(N, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -330,7 +330,7 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
   // If its a ring, then its a OT based -- use the default Conv2DCSF
   // implementation that comes from the EzPC library
   Conv2D(N, H, W, CI, FH, FW, CO, zPadHLeft, zPadHRight, zPadWLeft, zPadWRight,
-         strideH, strideW, inputArr, filterArr, outArr);
+         strideH, strideW, inputArr, filterArr, outArr, task_number);
 #endif
 
 #ifdef SCI_HE
@@ -412,16 +412,16 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inputArr, N * H * W * CI);
-    funcReconstruct2PCCons(nullptr, filterArr, FH * FW * CI * CO);
-    funcReconstruct2PCCons(nullptr, outArr, N * newH * newW * CO);
+    funcReconstruct2PCCons(nullptr, inputArr, N * H * W * CI, task_number);
+    funcReconstruct2PCCons(nullptr, filterArr, FH * FW * CI * CO, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, N * newH * newW * CO, task_number);
   } else {
     signedIntType *VinputArr = new signedIntType[N * H * W * CI];
-    funcReconstruct2PCCons(VinputArr, inputArr, N * H * W * CI);
+    funcReconstruct2PCCons(VinputArr, inputArr, N * H * W * CI, task_number);
     signedIntType *VfilterArr = new signedIntType[FH * FW * CI * CO];
-    funcReconstruct2PCCons(VfilterArr, filterArr, FH * FW * CI * CO);
+    funcReconstruct2PCCons(VfilterArr, filterArr, FH * FW * CI * CO, task_number);
     signedIntType *VoutputArr = new signedIntType[N * newH * newW * CO];
-    funcReconstruct2PCCons(VoutputArr, outArr, N * newH * newW * CO);
+    funcReconstruct2PCCons(VoutputArr, outArr, N * newH * newW * CO, task_number);
 
     std::vector<std::vector<std::vector<std::vector<uint64_t>>>> VinputVec;
     VinputVec.resize(N, std::vector<std::vector<std::vector<uint64_t>>>(
@@ -494,7 +494,7 @@ void Conv2DGroup(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t FH,
                  int32_t FW, int32_t CO, int32_t zPadHLeft, int32_t zPadHRight,
                  int32_t zPadWLeft, int32_t zPadWRight, int32_t strideH,
                  int32_t strideW, int32_t G, intType *inputArr,
-                 intType *filterArr, intType *outArr);
+                 intType *filterArr, intType *outArr, int task_number);
 #endif
 
 void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
@@ -520,7 +520,7 @@ void Conv2DGroupWrapper(signedIntType N, signedIntType H, signedIntType W,
   // If its a ring, then its a OT based -- use the default Conv2DGroupCSF
   // implementation that comes from the EzPC library
   Conv2DGroup(N, H, W, CI, FH, FW, CO, zPadHLeft, zPadHRight, zPadWLeft,
-              zPadWRight, strideH, strideW, G, inputArr, filterArr, outArr);
+              zPadWRight, strideH, strideW, G, inputArr, filterArr, outArr, task_number);
 #endif
 
 #ifdef SCI_HE
@@ -587,7 +587,7 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
     */
     dotProdThreads[i] = std::thread(funcDotProdThread, i, num_threads, curSize,
                                     multArrVec + offset, inArr + offset,
-                                    outputArr + offset, false);
+                                    outputArr + offset, task_number, false);
   }
   for (int i = 0; i < num_threads; ++i) {
     dotProdThreads[i].join();
@@ -642,16 +642,16 @@ void ElemWiseActModelVectorMult(int32_t size, intType *inArr,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, size);
-    funcReconstruct2PCCons(nullptr, multArrVec, size);
-    funcReconstruct2PCCons(nullptr, outputArr, size);
+    funcReconstruct2PCCons(nullptr, inArr, size, task_number);
+    funcReconstruct2PCCons(nullptr, multArrVec, size, task_number);
+    funcReconstruct2PCCons(nullptr, outputArr, size, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[size];
-    funcReconstruct2PCCons(VinArr, inArr, size);
+    funcReconstruct2PCCons(VinArr, inArr, size, task_number);
     signedIntType *VmultArr = new signedIntType[size];
-    funcReconstruct2PCCons(VmultArr, multArrVec, size);
+    funcReconstruct2PCCons(VmultArr, multArrVec, size, task_number);
     signedIntType *VoutputArr = new signedIntType[size];
-    funcReconstruct2PCCons(VoutputArr, outputArr, size);
+    funcReconstruct2PCCons(VoutputArr, outputArr, size, task_number);
 
     std::vector<uint64_t> VinVec(size);
     std::vector<uint64_t> VmultVec(size);
@@ -709,13 +709,13 @@ void ArgMax(int32_t s1, int32_t s2, intType *inArr, intType *outArr, int task_nu
 
 #ifdef VERIFY_LAYERWISE
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, s1 * s2);
-    funcReconstruct2PCCons(nullptr, outArr, s1);
+    funcReconstruct2PCCons(nullptr, inArr, s1 * s2, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, s1, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[s1 * s2];
-    funcReconstruct2PCCons(VinArr, inArr, s1 * s2);
+    funcReconstruct2PCCons(VinArr, inArr, s1 * s2, task_number);
     signedIntType *VoutArr = new signedIntType[s1];
-    funcReconstruct2PCCons(VoutArr, outArr, s1);
+    funcReconstruct2PCCons(VoutArr, outArr, s1, task_number);
 
     std::vector<std::vector<uint64_t>> VinVec;
     VinVec.resize(s1, std::vector<uint64_t>(s2, 0));
@@ -756,6 +756,7 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
   INIT_ALL_IO_DATA_SENT;
   INIT_TIMER;
 #endif
+  std::cout << "Relu task " << task_number << std::endl;
 
   static int ctr = 1;
   printf("Relu #%d on %d points, truncate=%d by %d bits\n", ctr++, size,
@@ -773,8 +774,6 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 #if 0
   relu[task_number - 1]->relu(tempOutp, tempInp, eightDivElemts, nullptr, doTruncation, true);
 #else
-  int start = (task_number - 1) * num_threads;
-  int end = start + num_threads;
 
   std::thread relu_threads[num_threads];
   int chunk_size = (eightDivElemts / (8 * num_threads)) * 8;
@@ -787,8 +786,8 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
       lnum_relu = chunk_size;
     }
     relu_threads[i] =
-        std::thread(funcReLUThread, i + start, tempOutp + offset, tempInp + offset,
-                    lnum_relu, nullptr, false, doTruncation, /*approx*/ true);
+        std::thread(funcReLUThread, i, tempOutp + offset, tempInp + offset,
+                    lnum_relu, task_number, nullptr, false, doTruncation, /*approx*/ true);
   }
   for (int i = 0; i < num_threads; ++i) {
     relu_threads[i].join();
@@ -805,6 +804,8 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
   ReluCommSent[task_number = 1] += curComm;
 #endif
 
+  std::cout << "Relu point 1 task " << task_number << std::endl;
+
   if (doTruncation) {
 #ifdef LOG_LAYERWISE
     INIT_ALL_IO_DATA_SENT;
@@ -819,14 +820,18 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
     for (int i = 0; i < eightDivElemts; i++) {
       tempOutp[i] = tempOutp[i] & moduloMask;
     }
+  
+  std::cout << "Relu point 1.5 task " << task_number << std::endl;
 
 #if USE_CHEETAH == 0
     funcTruncateTwoPowerRingWrapper(eightDivElemts, tempOutp, tempTruncOutp, sf,
-                                    bitlength, true, msbShare);
+                                    bitlength, true, msbShare, task_number);
 #else
     funcReLUTruncateTwoPowerRingWrapper(eightDivElemts, tempOutp, tempTruncOutp,
-                                        sf, bitlength, true);
+                                        sf, bitlength, true, task_number);
 #endif
+
+  std::cout << "Relu point 2 task " << task_number  << std::endl;
 
 #else
     funcFieldDivWrapper<intType>(eightDivElemts, tempOutp, tempTruncOutp,
@@ -834,6 +839,8 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 #endif
     memcpy(outArr, tempTruncOutp, size * sizeof(intType));
     delete[] tempTruncOutp;
+
+  std::cout << "Relu point 3 task " << task_number  << std::endl;
 
 #ifdef LOG_LAYERWISE
     auto temp = TIMER_TILL_NOW;
@@ -863,16 +870,16 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
 #endif
 
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, size);
-    funcReconstruct2PCCons(nullptr, tempOutp, size);
-    funcReconstruct2PCCons(nullptr, outArr, size);
+    funcReconstruct2PCCons(nullptr, inArr, size, task_number);
+    funcReconstruct2PCCons(nullptr, tempOutp, size, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, size, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[size];
-    funcReconstruct2PCCons(VinArr, inArr, size);
+    funcReconstruct2PCCons(VinArr, inArr, size, task_number);
     signedIntType *VtempOutpArr = new signedIntType[size];
-    funcReconstruct2PCCons(VtempOutpArr, tempOutp, size);
+    funcReconstruct2PCCons(VtempOutpArr, tempOutp, size, task_number);
     signedIntType *VoutArr = new signedIntType[size];
-    funcReconstruct2PCCons(VoutArr, outArr, size);
+    funcReconstruct2PCCons(VoutArr, outArr, size), task_number;
 
     std::vector<uint64_t> VinVec;
     VinVec.resize(size, 0);
@@ -1000,8 +1007,6 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
 #ifndef MULTITHREADED_NONLIN
   maxpool[task_number - 1]->funcMaxMPC(rows, cols, reInpArr, maxi, maxiIdx);
 #else
-  int start = (task_number - 1) * num_threads;
-  int end = start + num_threads;
 
   std::thread maxpool_threads[num_threads];
   int chunk_size = (rows / (8 * num_threads)) * 8;
@@ -1014,8 +1019,8 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
       lnum_rows = chunk_size;
     }
     maxpool_threads[i] =
-        std::thread(funcMaxpoolThread, i + start, lnum_rows, cols,
-                    reInpArr + offset * cols, maxi + offset, maxiIdx + offset);
+        std::thread(funcMaxpoolThread, i, lnum_rows, cols,
+                    reInpArr + offset * cols, maxi + offset, maxiIdx + offset, task_number);
   }
   for (int i = 0; i < num_threads; ++i) {
     maxpool_threads[i].join();
@@ -1060,13 +1065,13 @@ void MaxPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, N * imgH * imgW * C);
-    funcReconstruct2PCCons(nullptr, outArr, N * H * W * C);
+    funcReconstruct2PCCons(nullptr, inArr, N * imgH * imgW * C, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, N * H * W * C, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[N * imgH * imgW * C];
-    funcReconstruct2PCCons(VinArr, inArr, N * imgH * imgW * C);
+    funcReconstruct2PCCons(VinArr, inArr, N * imgH * imgW * C, task_number);
     signedIntType *VoutArr = new signedIntType[N * H * W * C];
-    funcReconstruct2PCCons(VoutArr, outArr, N * H * W * C);
+    funcReconstruct2PCCons(VoutArr, outArr, N * H * W * C, task_number);
 
     std::vector<std::vector<std::vector<std::vector<uint64_t>>>> VinVec;
     VinVec.resize(N, std::vector<std::vector<std::vector<uint64_t>>>(
@@ -1243,13 +1248,13 @@ void AvgPool(int32_t N, int32_t H, int32_t W, int32_t C, int32_t ksizeH,
   }
 #endif
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, N * imgH * imgW * C);
-    funcReconstruct2PCCons(nullptr, outArr, N * H * W * C);
+    funcReconstruct2PCCons(nullptr, inArr, N * imgH * imgW * C, task_number);
+    funcReconstruct2PCCons(nullptr, outArr, N * H * W * C, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[N * imgH * imgW * C];
-    funcReconstruct2PCCons(VinArr, inArr, N * imgH * imgW * C);
+    funcReconstruct2PCCons(VinArr, inArr, N * imgH * imgW * C, task_number);
     signedIntType *VoutArr = new signedIntType[N * H * W * C];
-    funcReconstruct2PCCons(VoutArr, outArr, N * H * W * C);
+    funcReconstruct2PCCons(VoutArr, outArr, N * H * W * C, task_number);
 
     std::vector<std::vector<std::vector<std::vector<uint64_t>>>> VinVec;
     VinVec.resize(N, std::vector<std::vector<std::vector<uint64_t>>>(
@@ -1326,7 +1331,7 @@ void ScaleDown(int32_t size, intType *inArr, int32_t sf, int task_number) {
   }
 
   funcTruncateTwoPowerRingWrapper(eightDivElemts, tempInp, outp, sf, bitlength,
-                                  true, nullptr);
+                                  true, nullptr, task_number);
 #else
   for (int i = 0; i < eightDivElemts; i++) {
     tempInp[i] = sci::neg_mod(tempInp[i], (int64_t)prime_mod);
@@ -1351,13 +1356,13 @@ void ScaleDown(int32_t size, intType *inArr, int32_t sf, int task_number) {
 #endif
 
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, size);
-    funcReconstruct2PCCons(nullptr, outp, size);
+    funcReconstruct2PCCons(nullptr, inArr, size, task_number);
+    funcReconstruct2PCCons(nullptr, outp, size, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[size];
-    funcReconstruct2PCCons(VinArr, inArr, size);
+    funcReconstruct2PCCons(VinArr, inArr, size, task_number);
     signedIntType *VoutpArr = new signedIntType[size];
-    funcReconstruct2PCCons(VoutpArr, outp, size);
+    funcReconstruct2PCCons(VoutpArr, outp, size, task_number);
 
     std::vector<uint64_t> VinVec;
     VinVec.resize(size, 0);
@@ -1949,15 +1954,15 @@ void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
     } else {
       curSize = chunk_size;
     }
-    dotProdThreads[i] = std::thread(funcDotProdThread, i + start, num_threads, curSize,
+    dotProdThreads[i] = std::thread(funcDotProdThread, i, num_threads, curSize,
                                     multArrVec + offset, inArr + offset,
-                                    outputArr + offset, true);
+                                    outputArr + offset, task_number, true);
   }
   for (int i = 0; i < num_threads; ++i) {
     dotProdThreads[i].join();
   }
 #else
-  matmul->hadamard_cross_terms(size, multArrVec, inArr, outputArr, bitlength,
+  matmul[task_number - 1]->hadamard_cross_terms(size, multArrVec, inArr, outputArr, bitlength,
                                bitlength, bitlength, MultMode::None);
 #endif
 
@@ -1976,16 +1981,16 @@ void ElemWiseSecretSharedVectorMult(int32_t size, intType *inArr,
 
 #ifdef VERIFY_LAYERWISE
   if (party == SERVER) {
-    funcReconstruct2PCCons(nullptr, inArr, size);
-    funcReconstruct2PCCons(nullptr, multArrVec, size);
-    funcReconstruct2PCCons(nullptr, outputArr, size);
+    funcReconstruct2PCCons(nullptr, inArr, size, task_number);
+    funcReconstruct2PCCons(nullptr, multArrVec, size, task_number);
+    funcReconstruct2PCCons(nullptr, outputArr, size, task_number);
   } else {
     signedIntType *VinArr = new signedIntType[size];
-    funcReconstruct2PCCons(VinArr, inArr, size);
+    funcReconstruct2PCCons(VinArr, inArr, size, task_number);
     signedIntType *VmultArr = new signedIntType[size];
-    funcReconstruct2PCCons(VmultArr, multArrVec, size);
+    funcReconstruct2PCCons(VmultArr, multArrVec, size, task_number);
     signedIntType *VoutputArr = new signedIntType[size];
-    funcReconstruct2PCCons(VoutputArr, outputArr, size);
+    funcReconstruct2PCCons(VoutputArr, outputArr, size, task_number);
 
     std::vector<uint64_t> VinVec(size);
     std::vector<uint64_t> VmultVec(size);
