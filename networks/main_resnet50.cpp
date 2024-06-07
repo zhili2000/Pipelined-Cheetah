@@ -1822,6 +1822,10 @@ int main(int argc, char **argv) {
   assert(party == SERVER || party == CLIENT);
   std::cerr << "Loading input from stdin..." << std::endl;
 
+  const auto startTime = std::chrono::high_resolution_clock::now();
+  
+  std::vector<uint64_t*> images = loadInput(im_batch_size);
+
   uint64_t *tmp1 = make_array<uint64_t>(7, 7, 3, 64);
   /* Variable to read the clear value corresponding to the input variable tmp1
    * at (1933,1-1933,43) */
@@ -4957,6 +4961,9 @@ int main(int argc, char **argv) {
     }
     Arr1DIdxRowM(tmp251, 1001, i0) = (party == SERVER) ? __tmp_in_tmp251 : 0;
   }
+
+  const auto inputEndTime = std::chrono::high_resolution_clock::now();
+
   std::cerr << "input loaded, starting computation..." << std::endl;
   gINPUTCLOSE;
 
@@ -6203,8 +6210,6 @@ int main(int argc, char **argv) {
   layer3Processor.start();
   layer4Processor.start();
 
-  std::vector<uint64_t*> images = loadInput(im_batch_size);
-
   for (int tn = 0; tn < im_batch_size; tn++) {
     layer1Processor.addTask(images[tn], tn + 1); // Add task to the first processor
   }
@@ -6376,6 +6381,17 @@ int main(int argc, char **argv) {
   ClearMemSecret1(1001, tmp251);
 
   std::cout << "Finished!!!!!!" << std::endl;
+
+  const auto endTime = std::chrono::high_resolution_clock::now();
+  std::cout << "Time for input processing: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(inputEndTime - startTime).count()
+            << "ms" << std::endl;
+  std::cout << "Time for inference: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime - (inputEndTime - startTime)).count()
+            << "ms" << std::endl;
+  std::cout << "Total time: "
+            << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count()
+            << "ms" << std::endl;
 
   layer1Processor.stopProcessing();
   layer2Processor.stopProcessing();
