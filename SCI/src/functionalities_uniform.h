@@ -547,7 +547,6 @@ void funcReLUTruncateTwoPowerRingWrapper(int size, intType *inp, intType *outp,
                     outp + offset, consSF, bw, isSigned, task_number);
   }
 
-  std::cout << "Started all threads, task " << task_number << std::endl;
   for (int i = 0; i < num_threads; ++i) {
     truncThreads[i].join();
   }

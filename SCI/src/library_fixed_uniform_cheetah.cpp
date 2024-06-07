@@ -252,8 +252,6 @@ void Conv2DWrapper(signedIntType N, signedIntType H, signedIntType W,
     }
   }
 
-  std::cout << "Conv2DWrapper, point 1, task number: " << task_number << std::endl;
-
   const int npads = zPadHLeft + zPadHRight + zPadWLeft + zPadWRight;
   meta.padding = npads == 0 ? gemini::Padding::VALID : gemini::Padding::SAME;
   meta.stride = strideH;

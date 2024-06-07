@@ -55,7 +55,7 @@ SOFTWARE.
 #define MAX_THREADS 4
 
 // Maximum batch size allowed
-#define MAX_BATCH 5
+#define MAX_BATCH 4
 
 extern sci::NetIO *io[MAX_BATCH];
 extern sci::OTPack<sci::NetIO> *otpack[MAX_BATCH];

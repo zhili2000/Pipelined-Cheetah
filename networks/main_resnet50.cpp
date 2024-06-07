@@ -7,6 +7,8 @@
 #include <chrono>
 
 #include "library_fixed.h"
+#include "layer_processor.h"
+#include "load_input.h"
 using namespace std;
 #define USE_FUSED_BN 1
 
@@ -17,6 +19,7 @@ int num_threads = 4;
 int32_t bitlength = 41;
 int32_t kScale = 12;
 int32_t kDoExtractTruncate = 1;
+int im_batch_size = 1;
 
 int64_t getSignValue(uint64_t x) {
   static int64_t upper = 1LL << bitlength;
@@ -286,7 +289,7 @@ void Conv2DGroup(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH,
                  int64_t FW, int64_t CO, int64_t zPadHLeft, int64_t zPadHRight,
                  int64_t zPadWLeft, int64_t zPadWRight, int64_t strideH,
                  int64_t strideW, int64_t G, uint64_t *inputArr,
-                 uint64_t *filterArr, uint64_t *outArr) {
+                 uint64_t *filterArr, uint64_t *outArr, int task_number) {
   int64_t CIG = (CI / G);
 
   int64_t reshapedFilterRows = (CO / G);
@@ -315,7 +318,7 @@ void Conv2DGroup(int64_t N, int64_t H, int64_t W, int64_t CI, int64_t FH,
                             reshapedIPRows, reshapedIPCols, inputArr,
                             inputReshaped);
     MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-             filterReshaped, inputReshaped, matmulOP, 1);
+             filterReshaped, inputReshaped, matmulOP, 1, task_number);
     Conv2DReshapeMatMulOPGroup(N, outH, outW, CO, g, G, matmulOP, outArr);
     ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
     ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -431,7 +434,7 @@ void Conv3D(int64_t N, int64_t D, int64_t H, int64_t W, int64_t CI, int64_t FD,
             int64_t zPadDRight, int64_t zPadHLeft, int64_t zPadHRight,
             int64_t zPadWLeft, int64_t zPadWRight, int64_t strideD,
             int64_t strideH, int64_t strideW, uint64_t *inputArr,
-            uint64_t *filterArr, uint64_t *outArr) {
+            uint64_t *filterArr, uint64_t *outArr, int task_number) {
   int64_t reshapedFilterRows = CO;
 
   int64_t reshapedFilterCols = (((FD * FH) * FW) * CI);
@@ -459,7 +462,7 @@ void Conv3D(int64_t N, int64_t D, int64_t H, int64_t W, int64_t CI, int64_t FD,
                      strideH, strideW, reshapedIPRows, reshapedIPCols, inputArr,
                      inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv3DReshapeMatMulOP(N, newD, newH, newW, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -639,7 +642,7 @@ void ConvTranspose2D(int64_t N, int64_t HPrime, int64_t WPrime, int64_t CI,
                      int64_t zPadTrHLeft, int64_t zPadTrHRight,
                      int64_t zPadTrWLeft, int64_t zPadTrWRight, int64_t strideH,
                      int64_t strideW, uint64_t *inputArr, uint64_t *filterArr,
-                     uint64_t *outArr) {
+                     uint64_t *outArr, int task_number) {
   int64_t reshapedFilterRows = CO;
 
   int64_t reshapedFilterCols = ((FH * FW) * CI);
@@ -661,7 +664,7 @@ void ConvTranspose2D(int64_t N, int64_t HPrime, int64_t WPrime, int64_t CI,
                               strideW, reshapedIPRows, reshapedIPCols, inputArr,
                               inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   ConvTranspose2DReshapeMatMulOP(N, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -777,7 +780,7 @@ void ConvTranspose3D(int64_t N, int64_t DPrime, int64_t HPrime, int64_t WPrime,
                      int64_t zPadTrHRight, int64_t zPadTrWLeft,
                      int64_t zPadTrWRight, int64_t strideD, int64_t strideH,
                      int64_t strideW, uint64_t *inputArr, uint64_t *filterArr,
-                     uint64_t *outArr) {
+                     uint64_t *outArr, int task_number) {
   int64_t reshapedFilterRows = CO;
 
   int64_t reshapedFilterCols = (((FD * FH) * FW) * CI);
@@ -799,7 +802,7 @@ void ConvTranspose3D(int64_t N, int64_t DPrime, int64_t HPrime, int64_t WPrime,
       zPadTrHLeft, zPadTrHRight, zPadTrWLeft, zPadTrWRight, strideD, strideH,
       strideW, reshapedIPRows, reshapedIPCols, inputArr, inputReshaped);
   MatMul2D(reshapedFilterRows, reshapedFilterCols, reshapedIPCols,
-           filterReshaped, inputReshaped, matmulOP, 1);
+           filterReshaped, inputReshaped, matmulOP, 1, task_number);
   Conv3DReshapeMatMulOP(N, D, H, W, CO, matmulOP, outArr);
   ClearMemSecret2(reshapedFilterRows, reshapedFilterCols, filterReshaped);
   ClearMemSecret2(reshapedIPRows, reshapedIPCols, inputReshaped);
@@ -1060,7 +1063,7 @@ void Squeeze24(int64_t s1, int64_t s2, int64_t dim1, int64_t dim2, int64_t ins1,
 void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
                         uint64_t *inArr, uint64_t *multArr, uint64_t *biasArr,
                         int64_t multExprScaleDownSf, int64_t biasExprScaleUpSf,
-                        uint64_t *outputArr) {
+                        uint64_t *outputArr, int task_number) {
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s4);
   for (uint64_t ii = 0; ii < s4; ii++) {
     Arr1DIdxRowM(biasArrScaledUp, s4, ii) = Arr1DIdxRowM(biasArr, s4, ii);
@@ -1074,7 +1077,7 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     int64_t n_ct_coeff_packing  = ((s2 * s3 + 4095) / 4096) * s4;
     int64_t n_ct_bfv_packing  = ((s2 * s3 * s4 + 4095) / 4096) * 3;
     if (n_ct_coeff_packing < n_ct_bfv_packing) {
-      BatchNorm(s1, s2, s3, s4, inArr, multArr, biasArrScaledUp, outputArr);
+      BatchNorm(s1, s2, s3, s4, inArr, multArr, biasArrScaledUp, outputArr, task_number);
       ClearMemSecret1(s4, biasArrScaledUp);
       return;
     }
@@ -1101,9 +1104,9 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, task_number);
   if ((multExprScaleDownSf > 0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, task_number);
   }
 
 
@@ -1136,7 +1139,7 @@ void FusedBatchNorm4411(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
                         int64_t s5, uint64_t *inArr, uint64_t *multArr,
                         uint64_t *biasArr, int64_t multExprScaleDownSf,
-                        int64_t biasExprScaleUpSf, uint64_t *outputArr) {
+                        int64_t biasExprScaleUpSf, uint64_t *outputArr, int task_number) {
   int64_t inpSize = ((((s1 * s2) * s3) * s4) * s5);
 
   uint64_t *inArrReshaped = make_array<uint64_t>(inpSize);
@@ -1164,9 +1167,9 @@ void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseActModelVectorMult(inpSize, inArrReshaped, multArrReshaped,
-                             multExprAns);
+                             multExprAns, task_number);
   if ((multExprScaleDownSf > 0)) {
-    ScaleDown(inpSize, multExprAns, multExprScaleDownSf);
+    ScaleDown(inpSize, multExprAns, multExprScaleDownSf, task_number);
   }
 
   uint64_t *biasArrScaledUp = make_array<uint64_t>(s5);
@@ -1201,7 +1204,7 @@ void FusedBatchNorm5511(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 }
 
 void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
-                  uint64_t *outArr) {
+                  uint64_t *outArr, int task_number) {
   int64_t inpSize = (s1 * s2);
 
   uint64_t *arr1Reshaped = make_array<uint64_t>(inpSize);
@@ -1219,7 +1222,7 @@ void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       int64_t linIdx = ((i1 * s2) + i2);
@@ -1233,7 +1236,7 @@ void ElemWiseMul2(int64_t s1, int64_t s2, uint64_t *arr1, uint64_t *arr2,
 }
 
 void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
-                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr) {
+                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr, int task_number) {
   int64_t inpSize = (((s1 * s2) * s3) * s4);
 
   uint64_t *arr1Reshaped = make_array<uint64_t>(inpSize);
@@ -1256,7 +1259,7 @@ void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       for (uint64_t i3 = 0; i3 < s3; i3++) {
@@ -1275,7 +1278,7 @@ void ElemWiseMul4(int64_t s1, int64_t s2, int64_t s3, int64_t s4,
 }
 
 void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
-                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr) {
+                  uint64_t *arr1, uint64_t *arr2, uint64_t *outArr, int task_number) {
   int64_t inpSize = ((((s1 * s2) * s3) * s4) * s5);
 
   uint64_t *arr1Reshaped = make_array<uint64_t>(inpSize);
@@ -1303,7 +1306,7 @@ void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
     }
   }
   ElemWiseSecretSharedVectorMult(inpSize, arr1Reshaped, arr2Reshaped,
-                                 outArrReshaped);
+                                 outArrReshaped, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       for (uint64_t i3 = 0; i3 < s3; i3++) {
@@ -1328,7 +1331,7 @@ void ElemWiseMul5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
 
 void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
                   int64_t inS3, int64_t inS4, uint64_t *inputArr, int64_t *axes,
-                  uint64_t *outputArr) {
+                  uint64_t *outputArr, int task_number) {
   int64_t divisor = (inS2 * inS3);
 
   int64_t outputSize = (outS1 * outS2);
@@ -1348,7 +1351,7 @@ void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, task_number);
   for (uint64_t i1 = 0; i1 < outS1; i1++) {
     for (uint64_t i2 = 0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -1361,7 +1364,7 @@ void ReduceMean24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
 
 void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
                       int64_t inS3, int64_t inS4, uint64_t *inputArr,
-                      int64_t axis1, int64_t axis2, uint64_t *outputArr) {
+                      int64_t axis1, int64_t axis2, uint64_t *outputArr, int task_number) {
   int64_t divisor = (inS3 * inS4);
 
   int64_t outputSize = (outS1 * outS2);
@@ -1381,7 +1384,7 @@ void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
       Arr1DIdxRowM(sumArr, outputSize, ((i1 * outS2) + i2)) = summ;
     }
   }
-  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped);
+  ElemWiseVectorPublicDiv(outputSize, sumArr, divisor, outputArrReshaped, task_number);
   for (uint64_t i1 = 0; i1 < outS1; i1++) {
     for (uint64_t i2 = 0; i2 < outS2; i2++) {
       Arr2DIdxRowM(outputArr, outS1, outS2, i1, i2) =
@@ -1393,13 +1396,13 @@ void ReduceMeanONNX24(int64_t outS1, int64_t outS2, int64_t inS1, int64_t inS2,
 }
 
 void ArgMax1(int64_t outArrS1, int64_t inArrS1, int64_t inArrS2,
-             uint64_t *inArr, int64_t dim, uint64_t *outArr) {
-  ArgMax(inArrS1, inArrS2, inArr, outArr);
+             uint64_t *inArr, int64_t dim, uint64_t *outArr, int task_number) {
+  ArgMax(inArrS1, inArrS2, inArr, outArr, task_number);
 }
 
 void ArgMax3(int64_t outs1, int64_t outs2, int64_t outs3, int64_t ins1,
              int64_t ins2, int64_t ins3, int64_t ins4, uint64_t *inArr,
-             int64_t dim, uint64_t *outArr) {
+             int64_t dim, uint64_t *outArr, int task_number) {
   int64_t size = ((ins1 * ins2) * ins3);
 
   uint64_t *reshapedInArr = make_array<uint64_t>(size, ins4);
@@ -1416,7 +1419,7 @@ void ArgMax3(int64_t outs1, int64_t outs2, int64_t outs3, int64_t ins1,
       }
     }
   }
-  ArgMax(size, ins4, reshapedInArr, reshapedOutArr);
+  ArgMax(size, ins4, reshapedInArr, reshapedOutArr, task_number);
   for (uint64_t i1 = 0; i1 < ins1; i1++) {
     for (uint64_t i2 = 0; i2 < ins2; i2++) {
       for (uint64_t i3 = 0; i3 < ins3; i3++) {
@@ -1431,7 +1434,7 @@ void ArgMax3(int64_t outs1, int64_t outs2, int64_t outs3, int64_t ins1,
 }
 
 void Relu2(int64_t s1, int64_t s2, uint64_t *inArr, uint64_t *outArr,
-           int64_t sf, uint64_t doTruncation) {
+           int64_t sf, uint64_t doTruncation, int task_number) {
   int64_t size = (s1 * s2);
 
   uint64_t *reshapedInArr = make_array<uint64_t>(size);
@@ -1444,7 +1447,7 @@ void Relu2(int64_t s1, int64_t s2, uint64_t *inArr, uint64_t *outArr,
           Arr2DIdxRowM(inArr, s1, s2, i1, i2);
     }
   }
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       int64_t linIdx = ((i1 * s2) + i2);
@@ -1457,7 +1460,7 @@ void Relu2(int64_t s1, int64_t s2, uint64_t *inArr, uint64_t *outArr,
 }
 
 void Relu4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *inArr,
-           uint64_t *outArr, int64_t sf, uint64_t doTruncation) {
+           uint64_t *outArr, int64_t sf, uint64_t doTruncation, int task_number) {
   int64_t size = (((s1 * s2) * s3) * s4);
 
   uint64_t *reshapedInArr = make_array<uint64_t>(size);
@@ -1476,7 +1479,7 @@ void Relu4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *inArr,
     }
   }
 
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, task_number);
 
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
@@ -1496,7 +1499,7 @@ void Relu4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *inArr,
 
 void Relu5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
            uint64_t *inArr, uint64_t *outArr, int64_t sf,
-           uint64_t doTruncation) {
+           uint64_t doTruncation, int task_number) {
   int64_t size = ((((s1 * s2) * s3) * s4) * s5);
 
   uint64_t *reshapedInArr = make_array<uint64_t>(size);
@@ -1519,7 +1522,7 @@ void Relu5(int64_t s1, int64_t s2, int64_t s3, int64_t s4, int64_t s5,
       }
     }
   }
-  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation);
+  Relu(size, reshapedInArr, reshapedOutArr, sf, doTruncation, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       for (uint64_t i3 = 0; i3 < s3; i3++) {
@@ -1650,11 +1653,11 @@ void ScaleUp4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
   ClearMemSecret1(size, reshapedArr);
 }
 
-void ScaleDown1(int64_t s1, uint64_t *arr, int64_t sf) {
-  ScaleDown(s1, arr, sf);
+void ScaleDown1(int64_t s1, uint64_t *arr, int64_t sf, int task_number) {
+  ScaleDown(s1, arr, sf, task_number);
 }
 
-void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
+void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf, int task_number) {
   int64_t size = (s1 * s2);
 
   uint64_t *reshapedArr = make_array<uint64_t>(size);
@@ -1665,7 +1668,7 @@ void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
           Arr2DIdxRowM(arr, s1, s2, i1, i2);
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       int64_t linIdx = ((i1 * s2) + i2);
@@ -1676,7 +1679,7 @@ void ScaleDown2(int64_t s1, int64_t s2, uint64_t *arr, int64_t sf) {
   ClearMemSecret1(size, reshapedArr);
 }
 
-void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
+void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf, int task_number) {
   int64_t size = ((s1 * s2) * s3);
 
   uint64_t *reshapedArr = make_array<uint64_t>(size);
@@ -1689,7 +1692,7 @@ void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       for (uint64_t i3 = 0; i3 < s3; i3++) {
@@ -1703,7 +1706,7 @@ void ScaleDown3(int64_t s1, int64_t s2, int64_t s3, uint64_t *arr, int64_t sf) {
 }
 
 void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
-                int64_t sf) {
+                int64_t sf, int task_number) {
   int64_t size = (((s1 * s2) * s3) * s4);
 
   uint64_t *reshapedArr = make_array<uint64_t>(size);
@@ -1719,7 +1722,7 @@ void ScaleDown4(int64_t s1, int64_t s2, int64_t s3, int64_t s4, uint64_t *arr,
       }
     }
   }
-  ScaleDown(size, reshapedArr, sf);
+  ScaleDown(size, reshapedArr, sf, task_number);
   for (uint64_t i1 = 0; i1 < s1; i1++) {
     for (uint64_t i2 = 0; i2 < s2; i2++) {
       for (uint64_t i3 = 0; i3 < s3; i3++) {
@@ -1742,7 +1745,7 @@ void FusedBN(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t fh,
              const uint64_t *filters,
              const uint64_t *bn_scales, 
              const uint64_t *bn_bias,
-             uint64_t *out_tensor) {
+             uint64_t *out_tensor, int task_number) {
   const double _scale = std::pow(2., kScale);
 
   uint64_t *scaled_filters = make_array<uint64_t>(fh, fw, CI, CO);
@@ -1774,7 +1777,7 @@ void FusedBN(int32_t N, int32_t H, int32_t W, int32_t CI, int32_t fh,
     std::fill_n(scaled_filters, fh * fw * CI * CO, 0);
   }
 
-  Conv2DWrapper(N, H, W, CI, fh, fw, CO, padHLeft, padHRight, padWLeft, padWRight, strideH, strideW, in_tensor, scaled_filters, out_tensor);
+  Conv2DWrapper(N, H, W, CI, fh, fw, CO, padHLeft, padHRight, padWLeft, padWRight, strideH, strideW, in_tensor, scaled_filters, out_tensor, task_number);
 
   int32_t newH = (((H + (padHLeft + padHRight)) - fh) / strideH) + 1;
   int32_t newW = (((W + (padWLeft + padWRight)) - fw) / strideW) + 1;
@@ -1808,27 +1811,16 @@ int main(int argc, char **argv) {
   amap.arg("nt", num_threads, "Number of Threads");
   amap.arg("ell", bitlength, "Uniform Bitwidth");
   amap.arg("k", kScale, "bits of scale");
+  amap.arg("b", im_batch_size, "Batch Size");
   amap.parse(argc, argv);
+
+  if (im_batch_size > MAX_BATCH) {
+    std::cerr << "Batch size exceeds the maximum batch size supported." << std::endl;
+    return 1;
+  }
 
   assert(party == SERVER || party == CLIENT);
   std::cerr << "Loading input from stdin..." << std::endl;
-  uint64_t *tmp0 = make_array<uint64_t>(1, 224, 224, 3);
-  /* Variable to read the clear value corresponding to the input variable tmp0
-   * at (1930,1-1930,46) */
-  uint64_t __tmp_in_tmp0;
-  for (uint64_t i0 = (uint64_t)0; i0 < 1; i0++) {
-    for (uint64_t i1 = (uint64_t)0; i1 < 224; i1++) {
-      for (uint64_t i2 = (uint64_t)0; i2 < 224; i2++) {
-        for (uint64_t i3 = (uint64_t)0; i3 < 3; i3++) {
-          if (party == CLIENT) {
-            gINPUT>> __tmp_in_tmp0;
-          }
-          Arr4DIdxRowM(tmp0, 1, 224, 224, 3, i0, i1, i2, i3) =
-              (party == CLIENT) ? __tmp_in_tmp0 : 0;
-        }
-      }
-    }
-  }
 
   uint64_t *tmp1 = make_array<uint64_t>(7, 7, 3, 64);
   /* Variable to read the clear value corresponding to the input variable tmp1
@@ -4967,1425 +4959,1426 @@ int main(int argc, char **argv) {
   }
   std::cerr << "input loaded, starting computation..." << std::endl;
   gINPUTCLOSE;
-  StartComputation();
 
-  int64_t *tmp252 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)1, (int64_t)0) = 3;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)1, (int64_t)1) = 3;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)2, (int64_t)0) = 3;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)2, (int64_t)1) = 3;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp252, 4, 2, (int64_t)3, (int64_t)1) = 0;
+  auto layer1 = [tmp1, tmp2, tmp3, tmp6, tmp7, tmp8, tmp9, tmp12, tmp13, 
+                 tmp14, tmp17, tmp18, tmp19, tmp22, tmp23, tmp24, tmp27, 
+                 tmp28, tmp29, tmp32, tmp33, tmp34, tmp37, tmp38, tmp39,
+                 tmp42, tmp43, tmp44, tmp47, tmp48, tmp49]
+                (uint64_t* input, uint64_t** output, int task_number) {
+    StartComputation(task_number);
 
-  uint64_t *tmp253 = make_array<uint64_t>(1, 230, 230, 3);
-  Pad442(1, 230, 230, 3, 1, 224, 224, 3, tmp0, 4, 2, tmp252, tmp253);
-  ClearMemPublic2(4, 2, tmp252);
-  ClearMemSecret4(1, 224, 224, 3, tmp0);
+    int64_t *tmp252 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)1, (int64_t)0) = 3;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)1, (int64_t)1) = 3;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)2, (int64_t)0) = 3;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)2, (int64_t)1) = 3;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp252, 4, 2, (int64_t)3, (int64_t)1) = 0;
 
-  uint64_t *tmp256 = make_array<uint64_t>(1, 112, 112, 64);
-#if USE_CHEETAH
-  kIsSharedInput = false;
-#endif
-  Conv2DWrapper(1, 230, 230, 3, 7, 7, 64, 0, 0, 0, 0, 2, 2, tmp253, tmp1,
-                tmp256);
-  ClearMemSecret4(1, 230, 230, 3, tmp253);
+    uint64_t *tmp253 = make_array<uint64_t>(1, 230, 230, 3);
+    Pad442(1, 230, 230, 3, 1, 224, 224, 3, input, 4, 2, tmp252, tmp253);
+    ClearMemPublic2(4, 2, tmp252);
+    ClearMemSecret4(1, 224, 224, 3, input);
+
+    uint64_t *tmp256 = make_array<uint64_t>(1, 112, 112, 64);
+  #if USE_CHEETAH
+    kIsSharedInput = false;
+  #endif
+    Conv2DWrapper(1, 230, 230, 3, 7, 7, 64, 0, 0, 0, 0, 2, 2, tmp253, tmp1,
+                  tmp256, task_number);
+    ClearMemSecret4(1, 230, 230, 3, tmp253);
+  #if USE_CHEETAH
+    kIsSharedInput = true;
+  #endif
+
+    uint64_t *tmp259 = make_array<uint64_t>(1, 56, 56, 64);
+    MaxPool(1, 56, 56, 64, 3, 3, 0, 1, 0, 1, 2, 2, 1, 112, 112, 64, tmp256,
+            tmp259, task_number);
+    ClearMemSecret4(1, 112, 112, 64, tmp256);
+
+    uint64_t *tmp261 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp259, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp259, tmp2, tmp3, 0, kScale, tmp261, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp259);
+
+    uint64_t *tmp265 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp261, tmp265, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp261);
+
+    uint64_t *tmp267 = make_array<uint64_t>(1, 56, 56, 256);
+    Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp265, tmp6,
+                  tmp267, task_number);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp272 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 64, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp265, tmp7, tmp8, tmp9, tmp272, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp265);
+  #else
+    uint64_t *tmp269 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 64, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp265, tmp7, tmp269, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp265);
+
+    uint64_t *tmp272 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp269, kScale, task_number);
+
+    FusedBatchNorm4411(1, 56, 56, 64, tmp269, tmp8, tmp9, 0, kScale, tmp272, task_number);
+
+    ClearMemSecret4(1, 56, 56, 64, tmp269);
+  #endif
+
+    uint64_t *tmp276 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp272, tmp276, kScale, kDoExtractTruncate, task_number);
+
+    ClearMemSecret4(1, 56, 56, 64, tmp272);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp281 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp276, tmp12, tmp13,
+            tmp14, tmp281, task_number);
+  #else
+    uint64_t *tmp278 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp276, tmp12,
+                  tmp278, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp276);
+
+    uint64_t *tmp281 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp278, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp278, tmp13, tmp14, 0, kScale, tmp281, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp278);
+  #endif
+    uint64_t *tmp285 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp281, tmp285, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp281);
+
+    uint64_t *tmp287 = make_array<uint64_t>(1, 56, 56, 256);
+    Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp285, tmp17,
+                  tmp287, task_number);
+
+    uint64_t *tmp290 = make_array<uint64_t>(1, 56, 56, 256);
+    MatAdd4(1, 56, 56, 256, tmp287, tmp267, tmp290);
+    uint64_t *tmp293 = make_array<uint64_t>(1, 56, 56, 256);
+    ScaleDown4(1, 56, 56, 256, tmp290, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 256, tmp290, tmp18, tmp19, 0, kScale, tmp293, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp285);
+    ClearMemSecret4(1, 56, 56, 256, tmp287);
+    ClearMemSecret4(1, 56, 56, 256, tmp267);
+
+    uint64_t *tmp296 = make_array<uint64_t>(1, 56, 56, 256);
+    Relu4(1, 56, 56, 256, tmp293, tmp296, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp293);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp301 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp296, tmp22, tmp23,
+            tmp24, tmp301, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp296);
+  #else
+    uint64_t *tmp298 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp296, tmp22,
+                  tmp298, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp296);
+
+    uint64_t *tmp301 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp298, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp298, tmp23, tmp24, 0, kScale, tmp301, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp298);
+  #endif
+
+    uint64_t *tmp305 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp301, tmp305, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp301);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp310 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp305, tmp27, tmp28,
+            tmp29, tmp310, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp305);
+  #else
+    uint64_t *tmp307 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp305, tmp27,
+                  tmp307, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp305);
+
+    uint64_t *tmp310 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp307, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp307, tmp28, tmp29, 0, kScale, tmp310, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp307);
+  #endif
+
+    uint64_t *tmp314 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp310, tmp314, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp310);
+
+    uint64_t *tmp316 = make_array<uint64_t>(1, 56, 56, 256);
+    Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp314, tmp32,
+                  tmp316, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp314);
+
+    uint64_t *tmp319 = make_array<uint64_t>(1, 56, 56, 256);
+    ScaleUp4(1, 56, 56, 256, tmp290, kScale);
+    MatAdd4(1, 56, 56, 256, tmp316, tmp290, tmp319);
+    ClearMemSecret4(1, 56, 56, 256, tmp316);
+    ClearMemSecret4(1, 56, 56, 256, tmp290);
+
+    uint64_t *tmp322 = make_array<uint64_t>(1, 56, 56, 256);
+    ScaleDown4(1, 56, 56, 256, tmp319, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 256, tmp319, tmp33, tmp34, 0, kScale, tmp322, task_number);
+
+    uint64_t *tmp325 = make_array<uint64_t>(1, 56, 56, 256);
+    Relu4(1, 56, 56, 256, tmp322, tmp325, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp322);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp330 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp325, tmp37, tmp38,
+            tmp39, tmp330, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp325);
+  #else
+    uint64_t *tmp327 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp325, tmp37,
+                  tmp327, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp325);
+
+    uint64_t *tmp330 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp327, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp327, tmp38, tmp39, 0, kScale, tmp330, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp327);
+  #endif
+
+    uint64_t *tmp334 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp330, tmp334, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp330);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp339 = make_array<uint64_t>(1, 56, 56, 64);
+    FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp334, tmp42, tmp43,
+            tmp44, tmp339, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp334);
+  #else
+    uint64_t *tmp336 = make_array<uint64_t>(1, 56, 56, 64);
+    Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp334, tmp42,
+                  tmp336, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp334);
+
+    uint64_t *tmp339 = make_array<uint64_t>(1, 56, 56, 64);
+    ScaleDown4(1, 56, 56, 64, tmp336, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 64, tmp336, tmp43, tmp44, 0, kScale, tmp339, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp336);
+  #endif
+
+    uint64_t *tmp343 = make_array<uint64_t>(1, 56, 56, 64);
+    Relu4(1, 56, 56, 64, tmp339, tmp343, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp339);
+
+    uint64_t *tmp345 = make_array<uint64_t>(1, 56, 56, 256);
+    Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp343, tmp47,
+                  tmp345, task_number);
+    ClearMemSecret4(1, 56, 56, 64, tmp343);
+
+    uint64_t *tmp348 = make_array<uint64_t>(1, 56, 56, 256);
+    ScaleUp4(1, 56, 56, 256, tmp319, kScale);
+    MatAdd4(1, 56, 56, 256, tmp345, tmp319, tmp348);
+    ClearMemSecret4(1, 56, 56, 256, tmp319);
+    ClearMemSecret4(1, 56, 56, 256, tmp345);
+
+    uint64_t *tmp351 = make_array<uint64_t>(1, 56, 56, 256);
+    ScaleDown4(1, 56, 56, 256, tmp348, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 256, tmp348, tmp48, tmp49, 0, kScale, tmp351, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp348);
+
+    uint64_t *tmp355 = make_array<uint64_t>(1, 56, 56, 256);
+    Relu4(1, 56, 56, 256, tmp351, tmp355, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp351);
+
+    uint64_t *tmpout =
+      make_array<uint64_t>(1, 56, 56, 256);
+    memcpy(tmpout, tmp355, 1 * 56 * 56 * 256 * sizeof(uint64_t));
+
+    ClearMemSecret4(1, 56, 56, 256, tmp355);
+
+    *output = tmpout;
+  };
+
+  auto layer2 = [tmp52, tmp53, tmp55, tmp54, tmp58, tmp59, tmp60, tmp63,
+                 tmp64, tmp65, tmp68, tmp69, tmp70, tmp73, tmp74, tmp75, 
+                 tmp78, tmp80, tmp79, tmp83, tmp84, tmp85, tmp88, tmp89, 
+                 tmp90, tmp93, tmp94, tmp95, tmp98, tmp99, tmp100, tmp103, 
+                 tmp104, tmp105, tmp108, tmp109, tmp110]
+                (uint64_t* input, uint64_t** output, int task_number) {
+    int64_t *tmp357 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)1, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)1, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)2, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)2, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp357, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp358 = make_array<uint64_t>(1, 56, 56, 256);
+    Pad442(1, 56, 56, 256, 1, 56, 56, 256, input, 4, 2, tmp357, tmp358);
+    ClearMemPublic2(4, 2, tmp357);
+
+    uint64_t *tmp360 = make_array<uint64_t>(1, 28, 28, 512);
+    Conv2DWrapper(1, 56, 56, 256, 1, 1, 512, 0, 0, 0, 0, 2, 2, tmp358, tmp52,
+                  tmp360, task_number);
+    ClearMemSecret4(1, 56, 56, 256, tmp358);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp366 = make_array<uint64_t>(1, 56, 56, 128);
+    FusedBN(1, 56, 56, 256, 1, 1, 128, 0, 0, 0, 0, 1, 1, input, tmp53, tmp54,
+            tmp55, tmp366, task_number);
+    ClearMemSecret4(1, 56, 56, 256, input);
+  #else
+    uint64_t *tmp363 = make_array<uint64_t>(1, 56, 56, 128);
+    Conv2DWrapper(1, 56, 56, 256, 1, 1, 128, 0, 0, 0, 0, 1, 1, input, tmp53,
+                  tmp363, task_number);
+    ClearMemSecret4(1, 56, 56, 256, input);
+
+    uint64_t *tmp366 = make_array<uint64_t>(1, 56, 56, 128);
+    ScaleDown4(1, 56, 56, 128, tmp363, kScale, task_number);
+    FusedBatchNorm4411(1, 56, 56, 128, tmp363, tmp54, tmp55, 0, kScale, tmp366, task_number);
+    ClearMemSecret4(1, 56, 56, 128, tmp363);
+  #endif
+
+    uint64_t *tmp370 = make_array<uint64_t>(1, 56, 56, 128);
+    Relu4(1, 56, 56, 128, tmp366, tmp370, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 56, 56, 128, tmp366);
+
+    int64_t *tmp372 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)1, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)1, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)2, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)2, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp372, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp373 = make_array<uint64_t>(1, 58, 58, 128);
+    Pad442(1, 58, 58, 128, 1, 56, 56, 128, tmp370, 4, 2, tmp372, tmp373);
+    ClearMemPublic2(4, 2, tmp372);
+    ClearMemSecret4(1, 56, 56, 128, tmp370);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp379 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 58, 58, 128, 3, 3, 128, 0, 0, 0, 0, 2, 2, tmp373, tmp58, tmp59,
+            tmp60, tmp379, task_number);
+    ClearMemSecret4(1, 58, 58, 128, tmp373);
+  #else
+    uint64_t *tmp376 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 58, 58, 128, 3, 3, 128, 0, 0, 0, 0, 2, 2, tmp373, tmp58,
+                  tmp376, task_number);
+    ClearMemSecret4(1, 58, 58, 128, tmp373);
+
+    uint64_t *tmp379 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp376, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp376, tmp59, tmp60, 0, kScale, tmp379, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp376);
+  #endif
+
+    uint64_t *tmp383 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp379, tmp383, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp379);
+
+    uint64_t *tmp385 = make_array<uint64_t>(1, 28, 28, 512);
+    Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp383, tmp63,
+                  tmp385, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp383);
+
+    uint64_t *tmp388 = make_array<uint64_t>(1, 28, 28, 512);
+    MatAdd4(1, 28, 28, 512, tmp385, tmp360, tmp388);
+    ClearMemSecret4(1, 28, 28, 512, tmp385);
+    ClearMemSecret4(1, 28, 28, 512, tmp360);
+
+    uint64_t *tmp391 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleDown4(1, 28, 28, 512, tmp388, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 512, tmp388, tmp64, tmp65, 0, kScale, tmp391, task_number);
+
+    uint64_t *tmp394 = make_array<uint64_t>(1, 28, 28, 512);
+    Relu4(1, 28, 28, 512, tmp391, tmp394, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp391);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp399 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp394, tmp68, tmp69,
+            tmp70, tmp399, task_number);
+
+    ClearMemSecret4(1, 28, 28, 512, tmp394);
+  #else
+    uint64_t *tmp396 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp394, tmp68,
+                  tmp396, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp394);
+
+    uint64_t *tmp399 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp396, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp396, tmp69, tmp70, 0, kScale, tmp399, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp396);
+  #endif
+
+    uint64_t *tmp403 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp399, tmp403, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp399);
+
+    uint64_t *tmp405 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp403, tmp73,
+                  tmp405, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp403);
+
+    uint64_t *tmp408 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp405, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp405, tmp74, tmp75, 0, kScale, tmp408, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp405);
+
+    uint64_t *tmp412 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp408, tmp412, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp408);
+
+    uint64_t *tmp414 = make_array<uint64_t>(1, 28, 28, 512);
+    Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp412, tmp78,
+                  tmp414, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp412);
+
+    uint64_t *tmp417 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleUp4(1, 28, 28, 512, tmp388, kScale);
+    MatAdd4(1, 28, 28, 512, tmp414, tmp388, tmp417);
+    ClearMemSecret4(1, 28, 28, 512, tmp388);
+    ClearMemSecret4(1, 28, 28, 512, tmp414);
+
+    uint64_t *tmp420 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleDown4(1, 28, 28, 512, tmp417, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 512, tmp417, tmp79, tmp80, 0, kScale, tmp420, task_number);
+
+    uint64_t *tmp423 = make_array<uint64_t>(1, 28, 28, 512);
+    Relu4(1, 28, 28, 512, tmp420, tmp423, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp420);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp428 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp423, tmp83, tmp84,
+            tmp85, tmp428, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp423);
+  #else
+    uint64_t *tmp425 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp423, tmp83,
+                  tmp425, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp423);
+
+    uint64_t *tmp428 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp425, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp425, tmp84, tmp85, 0, kScale, tmp428, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp425);
+  #endif
+
+    uint64_t *tmp432 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp428, tmp432, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp428);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp437 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp432, tmp88, tmp89,
+            tmp90, tmp437, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp432);
+  #else
+    uint64_t *tmp434 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp432, tmp88,
+                  tmp434, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp432);
+
+    uint64_t *tmp437 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp434, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp434, tmp89, tmp90, 0, kScale, tmp437, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp434);
+  #endif
+
+    uint64_t *tmp441 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp437, tmp441, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp437);
+
+    uint64_t *tmp443 = make_array<uint64_t>(1, 28, 28, 512);
+    Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp441, tmp93,
+                  tmp443, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp441);
+
+    uint64_t *tmp446 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleUp4(1, 28, 28, 512, tmp417, kScale);
+    MatAdd4(1, 28, 28, 512, tmp443, tmp417, tmp446);
+    ClearMemSecret4(1, 28, 28, 512, tmp443);
+    ClearMemSecret4(1, 28, 28, 512, tmp417);
+
+    uint64_t *tmp449 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleDown4(1, 28, 28, 512, tmp446, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 512, tmp446, tmp94, tmp95, 0, kScale, tmp449, task_number);
+
+    uint64_t *tmp452 = make_array<uint64_t>(1, 28, 28, 512);
+    Relu4(1, 28, 28, 512, tmp449, tmp452, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp449);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp457 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp452, tmp98, tmp99,
+            tmp100, tmp457, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp452);
+  #else
+    uint64_t *tmp454 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp452, tmp98,
+                  tmp454, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp452);
+
+    uint64_t *tmp457 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp454, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp454, tmp99, tmp100, 0, kScale, tmp457, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp454);
+  #endif
+
+    uint64_t *tmp461 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp457, tmp461, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp457);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp466 = make_array<uint64_t>(1, 28, 28, 128);
+    FusedBN(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp461, tmp103, tmp104,
+            tmp105, tmp466, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp461);
+  #else
+    uint64_t *tmp463 = make_array<uint64_t>(1, 28, 28, 128);
+    Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp461, tmp103,
+                  tmp463, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp461);
+
+    uint64_t *tmp466 = make_array<uint64_t>(1, 28, 28, 128);
+    ScaleDown4(1, 28, 28, 128, tmp463, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 128, tmp463, tmp104, tmp105, 0, kScale, tmp466, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp463);
+  #endif
+
+    uint64_t *tmp470 = make_array<uint64_t>(1, 28, 28, 128);
+    Relu4(1, 28, 28, 128, tmp466, tmp470, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp466);
+
+    uint64_t *tmp472 = make_array<uint64_t>(1, 28, 28, 512);
+    Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp470, tmp108,
+                  tmp472, task_number);
+    ClearMemSecret4(1, 28, 28, 128, tmp470);
+
+    uint64_t *tmp475 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleUp4(1, 28, 28, 512, tmp446, kScale);
+    MatAdd4(1, 28, 28, 512, tmp472, tmp446, tmp475);
+    ClearMemSecret4(1, 28, 28, 512, tmp472);
+    ClearMemSecret4(1, 28, 28, 512, tmp446);
+
+    uint64_t *tmp478 = make_array<uint64_t>(1, 28, 28, 512);
+    ScaleDown4(1, 28, 28, 512, tmp475, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 512, tmp475, tmp109, tmp110, 0, kScale, tmp478, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp475);
+
+    uint64_t *tmp482 = make_array<uint64_t>(1, 28, 28, 512);
+    Relu4(1, 28, 28, 512, tmp478, tmp482, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp478);
+
+    uint64_t *tmpout =
+      make_array<uint64_t>(1, 28, 28, 512);
+    memcpy(tmpout, tmp482, 1 * 28 * 28 * 512 * sizeof(uint64_t));
+
+    ClearMemSecret4(1, 28, 28, 512, tmp482);
+
+    *output = tmpout;
+  };
+
+  auto layer3 = [tmp113, tmp114, tmp115, tmp116, tmp119, tmp120, tmp121, tmp124,
+                 tmp125, tmp126, tmp129, tmp130, tmp131, tmp134, tmp135, tmp136, 
+                 tmp139, tmp140, tmp141, tmp144, tmp145, tmp146, tmp149, tmp150, 
+                 tmp151, tmp154, tmp155, tmp156, tmp159, tmp160, tmp161, tmp164, 
+                 tmp165, tmp166, tmp169, tmp170, tmp171, tmp174, tmp175, tmp176,
+                 tmp179, tmp180, tmp181, tmp184, tmp185, tmp186, tmp189, tmp190,
+                 tmp191, tmp194, tmp195, tmp196, tmp199, tmp200, tmp201]
+                (uint64_t* input, uint64_t** output, int task_number) {
+    int64_t *tmp484 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)1, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)1, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)2, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)2, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp484, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp485 = make_array<uint64_t>(1, 28, 28, 512);
+    Pad442(1, 28, 28, 512, 1, 28, 28, 512, input, 4, 2, tmp484, tmp485);
+    ClearMemPublic2(4, 2, tmp484);
+
+    uint64_t *tmp487 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 28, 28, 512, 1, 1, 1024, 0, 0, 0, 0, 2, 2, tmp485, tmp113,
+                  tmp487, task_number);
+    ClearMemSecret4(1, 28, 28, 512, tmp485);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp493 = make_array<uint64_t>(1, 28, 28, 256);
+    FusedBN(1, 28, 28, 512, 1, 1, 256, 0, 0, 0, 0, 1, 1, input, tmp114, tmp115,
+            tmp116, tmp493, task_number);
+    ClearMemSecret4(1, 28, 28, 512, input);
+  #else
+    uint64_t *tmp490 = make_array<uint64_t>(1, 28, 28, 256);
+    Conv2DWrapper(1, 28, 28, 512, 1, 1, 256, 0, 0, 0, 0, 1, 1, input, tmp114,
+                  tmp490, task_number);
+    ClearMemSecret4(1, 28, 28, 512, input);
+
+    uint64_t *tmp493 = make_array<uint64_t>(1, 28, 28, 256);
+    ScaleDown4(1, 28, 28, 256, tmp490, kScale, task_number);
+    FusedBatchNorm4411(1, 28, 28, 256, tmp490, tmp115, tmp116, 0, kScale, tmp493, task_number);
+    ClearMemSecret4(1, 28, 28, 256, tmp490);
+  #endif
+
+    uint64_t *tmp497 = make_array<uint64_t>(1, 28, 28, 256);
+    Relu4(1, 28, 28, 256, tmp493, tmp497, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 28, 28, 256, tmp493);
+
+    int64_t *tmp499 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)1, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)1, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)2, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)2, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp499, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp500 = make_array<uint64_t>(1, 30, 30, 256);
+    Pad442(1, 30, 30, 256, 1, 28, 28, 256, tmp497, 4, 2, tmp499, tmp500);
+    ClearMemPublic2(4, 2, tmp499);
+    ClearMemSecret4(1, 28, 28, 256, tmp497);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp506 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 30, 30, 256, 3, 3, 256, 0, 0, 0, 0, 2, 2, tmp500, tmp119, tmp120,
+            tmp121, tmp506, task_number);
+    ClearMemSecret4(1, 30, 30, 256, tmp500);
+  #else
+    uint64_t *tmp503 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 30, 30, 256, 3, 3, 256, 0, 0, 0, 0, 2, 2, tmp500, tmp119,
+                  tmp503, task_number);
+    ClearMemSecret4(1, 30, 30, 256, tmp500);
+
+    uint64_t *tmp506 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp503, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp503, tmp120, tmp121, 0, kScale, tmp506, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp503);
+  #endif
+
+    uint64_t *tmp510 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp506, tmp510, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp506);
+
+    uint64_t *tmp512 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp510, tmp124,
+                  tmp512, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp510);
+
+    uint64_t *tmp515 = make_array<uint64_t>(1, 14, 14, 1024);
+    MatAdd4(1, 14, 14, 1024, tmp512, tmp487, tmp515);
+    ClearMemSecret4(1, 14, 14, 1024, tmp512);
+    ClearMemSecret4(1, 14, 14, 1024, tmp487);
+
+    uint64_t *tmp518 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp515, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp515, tmp125, tmp126, 0, kScale,
+                      tmp518, task_number);
+
+    uint64_t *tmp521 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp518, tmp521, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp518);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp526 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp521, tmp129, tmp130,
+            tmp131, tmp526, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp521);
+  #else
+    uint64_t *tmp523 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp521, tmp129,
+                  tmp523, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp521);
+
+    uint64_t *tmp526 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp523, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp523, tmp130, tmp131, 0, kScale, tmp526, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp523);
+  #endif
+
+    uint64_t *tmp530 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp526, tmp530, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp526);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp535 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp530, tmp134, tmp135,
+            tmp136, tmp535, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp530);
+  #else
+    uint64_t *tmp532 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp530, tmp134,
+                  tmp532, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp530);
+
+    uint64_t *tmp535 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp532, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp532, tmp135, tmp136, 0, kScale, tmp535, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp532);
+  #endif
+
+    uint64_t *tmp539 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp535, tmp539, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp535);
+
+    uint64_t *tmp541 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp539, tmp139,
+                  tmp541, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp539);
+
+    uint64_t *tmp544 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleUp4(1, 14, 14, 1024, tmp515, kScale);
+    MatAdd4(1, 14, 14, 1024, tmp541, tmp515, tmp544);
+    ClearMemSecret4(1, 14, 14, 1024, tmp541);
+    ClearMemSecret4(1, 14, 14, 1024, tmp515);
+
+    uint64_t *tmp547 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp544, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp544, tmp140, tmp141, 0, kScale,
+                      tmp547, task_number);
+
+    uint64_t *tmp550 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp547, tmp550, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp547);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp555 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp550, tmp144, tmp145,
+            tmp146, tmp555, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp550);
+  #else
+    uint64_t *tmp552 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp550, tmp144,
+                  tmp552, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp550);
+
+    uint64_t *tmp555 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp552, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp552, tmp145, tmp146, 0, kScale, tmp555, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp552);
+  #endif
+
+    uint64_t *tmp559 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp555, tmp559, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp555);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp564 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp559, tmp149, tmp150,
+            tmp151, tmp564, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp559);
+  #else
+    uint64_t *tmp561 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp559, tmp149,
+                  tmp561, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp559);
+
+    uint64_t *tmp564 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp561, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp561, tmp150, tmp151, 0, kScale, tmp564, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp561);
+  #endif
+
+    uint64_t *tmp568 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp564, tmp568, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp564);
+
+    uint64_t *tmp570 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp568, tmp154,
+                  tmp570, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp568);
+
+    uint64_t *tmp573 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleUp4(1, 14, 14, 1024, tmp544, kScale);
+    MatAdd4(1, 14, 14, 1024, tmp570, tmp544, tmp573);
+    ClearMemSecret4(1, 14, 14, 1024, tmp570);
+    ClearMemSecret4(1, 14, 14, 1024, tmp544);
+
+    uint64_t *tmp576 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp573, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp573, tmp155, tmp156, 0, kScale,
+                      tmp576, task_number);
+
+    uint64_t *tmp579 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp576, tmp579, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp576);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp584 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp579, tmp159, tmp160,
+            tmp161, tmp584, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp579);
+  #else
+    uint64_t *tmp581 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp579, tmp159,
+                  tmp581, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp579);
+
+    uint64_t *tmp584 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp581, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp581, tmp160, tmp161, 0, kScale, tmp584, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp581);
+  #endif
+
+    uint64_t *tmp588 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp584, tmp588, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp584);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp593 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp588, tmp164, tmp165,
+            tmp166, tmp593, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp588);
+  #else
+    uint64_t *tmp590 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp588, tmp164,
+                  tmp590, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp588);
+
+    uint64_t *tmp593 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp590, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp590, tmp165, tmp166, 0, kScale, tmp593, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp590);
+  #endif
+
+    uint64_t *tmp597 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp593, tmp597, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp593);
+
+    uint64_t *tmp599 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp597, tmp169,
+                  tmp599, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp597);
+
+    uint64_t *tmp602 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleUp4(1, 14, 14, 1024, tmp573, kScale);
+    MatAdd4(1, 14, 14, 1024, tmp599, tmp573, tmp602);
+    ClearMemSecret4(1, 14, 14, 1024, tmp599);
+    ClearMemSecret4(1, 14, 14, 1024, tmp573);
+
+    uint64_t *tmp605 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp602, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp602, tmp170, tmp171, 0, kScale,
+                      tmp605, task_number);
+
+    uint64_t *tmp608 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp605, tmp608, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp605);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp613 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp608, tmp174, tmp175,
+            tmp176, tmp613, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp608);
+  #else
+    uint64_t *tmp610 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp608, tmp174,
+                  tmp610, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp608);
+
+    uint64_t *tmp613 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp610, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp610, tmp175, tmp176, 0, kScale, tmp613, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp610);
+  #endif
+
+    uint64_t *tmp617 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp613, tmp617, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp613);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp622 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp617, tmp179, tmp180,
+            tmp181, tmp622, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp617);
+  #else
+    uint64_t *tmp619 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp617, tmp179,
+                  tmp619, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp617);
+
+    uint64_t *tmp622 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp619, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp619, tmp180, tmp181, 0, kScale, tmp622, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp619);
+  #endif
+
+    uint64_t *tmp626 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp622, tmp626, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp622);
+
+    uint64_t *tmp628 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp626, tmp184,
+                  tmp628, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp626);
+
+    uint64_t *tmp631 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleUp4(1, 14, 14, 1024, tmp602, kScale);
+    MatAdd4(1, 14, 14, 1024, tmp628, tmp602, tmp631);
+    ClearMemSecret4(1, 14, 14, 1024, tmp628);
+    ClearMemSecret4(1, 14, 14, 1024, tmp602);
+
+    uint64_t *tmp634 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp631, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp631, tmp185, tmp186, 0, kScale,
+                      tmp634, task_number);
+
+    uint64_t *tmp637 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp634, tmp637, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp634);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp642 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp637, tmp189, tmp190,
+            tmp191, tmp642, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp637);
+  #else
+    uint64_t *tmp639 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp637, tmp189,
+                  tmp639, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp637);
+
+    uint64_t *tmp642 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp639, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp639, tmp190, tmp191, 0, kScale, tmp642, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp639);
+  #endif
+
+    uint64_t *tmp646 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp642, tmp646, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp642);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp651 = make_array<uint64_t>(1, 14, 14, 256);
+    FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp646, tmp194, tmp195,
+            tmp196, tmp651, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp646);
+  #else
+    uint64_t *tmp648 = make_array<uint64_t>(1, 14, 14, 256);
+    Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp646, tmp194,
+                  tmp648, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp646);
+
+    uint64_t *tmp651 = make_array<uint64_t>(1, 14, 14, 256);
+    ScaleDown4(1, 14, 14, 256, tmp648, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 256, tmp648, tmp195, tmp196, 0, kScale, tmp651, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp648);
+  #endif
+
+    uint64_t *tmp655 = make_array<uint64_t>(1, 14, 14, 256);
+    Relu4(1, 14, 14, 256, tmp651, tmp655, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp651);
+
+    uint64_t *tmp657 = make_array<uint64_t>(1, 14, 14, 1024);
+    Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp655, tmp199,
+                  tmp657, task_number);
+    ClearMemSecret4(1, 14, 14, 256, tmp655);
+
+    uint64_t *tmp660 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleUp4(1, 14, 14, 1024, tmp631, kScale);
+    MatAdd4(1, 14, 14, 1024, tmp657, tmp631, tmp660);
+    ClearMemSecret4(1, 14, 14, 1024, tmp657);
+    ClearMemSecret4(1, 14, 14, 1024, tmp631);
+
+    uint64_t *tmp663 = make_array<uint64_t>(1, 14, 14, 1024);
+    ScaleDown4(1, 14, 14, 1024, tmp660, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 1024, tmp660, tmp200, tmp201, 0, kScale,
+                      tmp663, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp660);
+
+    uint64_t *tmp667 = make_array<uint64_t>(1, 14, 14, 1024);
+    Relu4(1, 14, 14, 1024, tmp663, tmp667, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp663);
+
+    uint64_t *tmpout =
+      make_array<uint64_t>(1, 14, 14, 1024);
+    memcpy(tmpout, tmp667, 1 * 14 * 14 * 1024 * sizeof(uint64_t));
+
+    ClearMemSecret4(1, 14, 14, 1024, tmp667);
+
+    *output = tmpout;
+  };
+
+  auto layer4 = [tmp204, tmp205, tmp206, tmp207, tmp210, tmp211, tmp212, tmp215, tmp217,
+                 tmp216, tmp220, tmp221, tmp222, tmp225, tmp227, tmp226, tmp230, tmp231,
+                 tmp232, tmp235, tmp237, tmp236, tmp240, tmp241, tmp242, tmp245, tmp247,
+                 tmp246, tmp250, tmp251]
+                (uint64_t* input, uint64_t** output, int task_number) {
+    int64_t *tmp669 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)1, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)1, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)2, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)2, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp669, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp670 = make_array<uint64_t>(1, 14, 14, 1024);
+    Pad442(1, 14, 14, 1024, 1, 14, 14, 1024, input, 4, 2, tmp669, tmp670);
+    ClearMemPublic2(4, 2, tmp669);
+
+    uint64_t *tmp672 = make_array<uint64_t>(1, 7, 7, 2048);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 2048, 0, 0, 0, 0, 2, 2, tmp670, tmp204,
+                  tmp672, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, tmp670);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp678 = make_array<uint64_t>(1, 14, 14, 512);
+    FusedBN(1, 14, 14, 1024, 1, 1, 512, 0, 0, 0, 0, 1, 1, input, tmp205, tmp206,
+            tmp207, tmp678, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, input);
+  #else
+    uint64_t *tmp675 = make_array<uint64_t>(1, 14, 14, 512);
+    Conv2DWrapper(1, 14, 14, 1024, 1, 1, 512, 0, 0, 0, 0, 1, 1, input, tmp205,
+                  tmp675, task_number);
+    ClearMemSecret4(1, 14, 14, 1024, input);
+
+    uint64_t *tmp678 = make_array<uint64_t>(1, 14, 14, 512);
+    ScaleDown4(1, 14, 14, 512, tmp675, kScale, task_number);
+    FusedBatchNorm4411(1, 14, 14, 512, tmp675, tmp206, tmp207, 0, kScale, tmp678, task_number);
+    ClearMemSecret4(1, 14, 14, 512, tmp675);
+  #endif
+
+    uint64_t *tmp682 = make_array<uint64_t>(1, 14, 14, 512);
+    Relu4(1, 14, 14, 512, tmp678, tmp682, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 14, 14, 512, tmp678);
+
+    int64_t *tmp684 = make_array<int64_t>(4, 2);
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)0, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)0, (int64_t)1) = 0;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)1, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)1, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)2, (int64_t)0) = 1;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)2, (int64_t)1) = 1;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)3, (int64_t)0) = 0;
+    Arr2DIdxRowM(tmp684, 4, 2, (int64_t)3, (int64_t)1) = 0;
+
+    uint64_t *tmp685 = make_array<uint64_t>(1, 16, 16, 512);
+    Pad442(1, 16, 16, 512, 1, 14, 14, 512, tmp682, 4, 2, tmp684, tmp685);
+    ClearMemPublic2(4, 2, tmp684);
+    ClearMemSecret4(1, 14, 14, 512, tmp682);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp691 = make_array<uint64_t>(1, 7, 7, 512);
+    FusedBN(1, 16, 16, 512, 3, 3, 512, 0, 0, 0, 0, 2, 2, tmp685, tmp210, tmp211,
+            tmp212, tmp691, task_number);
+    ClearMemSecret4(1, 16, 16, 512, tmp685);
+  #else
+    uint64_t *tmp688 = make_array<uint64_t>(1, 7, 7, 512);
+    Conv2DWrapper(1, 16, 16, 512, 3, 3, 512, 0, 0, 0, 0, 2, 2, tmp685, tmp210,
+                  tmp688, task_number);
+    ClearMemSecret4(1, 16, 16, 512, tmp685);
+
+    uint64_t *tmp691 = make_array<uint64_t>(1, 7, 7, 512);
+    ScaleDown4(1, 7, 7, 512, tmp688, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 512, tmp688, tmp211, tmp212, 0, kScale, tmp691, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp688);
+  #endif
+
+    uint64_t *tmp695 = make_array<uint64_t>(1, 7, 7, 512);
+    Relu4(1, 7, 7, 512, tmp691, tmp695, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp691);
+
+    uint64_t *tmp697 = make_array<uint64_t>(1, 7, 7, 2048);
+    Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp695, tmp215,
+                  tmp697, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp695);
+
+    uint64_t *tmp700 = make_array<uint64_t>(1, 7, 7, 2048);
+    MatAdd4(1, 7, 7, 2048, tmp697, tmp672, tmp700);
+    ClearMemSecret4(1, 7, 7, 2048, tmp672);
+    ClearMemSecret4(1, 7, 7, 2048, tmp697);
+
+    uint64_t *tmp703 = make_array<uint64_t>(1, 7, 7, 2048);
+    ScaleDown4(1, 7, 7, 2048, tmp700, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 2048, tmp700, tmp216, tmp217, 0, kScale, tmp703, task_number);
+
+    uint64_t *tmp706 = make_array<uint64_t>(1, 7, 7, 2048);
+    Relu4(1, 7, 7, 2048, tmp703, tmp706, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp703);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp711 = make_array<uint64_t>(1, 7, 7, 512);
+    FusedBN(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp706, tmp220, tmp221,
+            tmp222, tmp711, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp706);
+  #else
+    uint64_t *tmp708 = make_array<uint64_t>(1, 7, 7, 512);
+    Conv2DWrapper(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp706, tmp220,
+                  tmp708, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp706);
+
+    uint64_t *tmp711 = make_array<uint64_t>(1, 7, 7, 512);
+    ScaleDown4(1, 7, 7, 512, tmp708, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 512, tmp708, tmp221, tmp222, 0, kScale, tmp711, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp708);
+  #endif
+
+    uint64_t *tmp715 = make_array<uint64_t>(1, 7, 7, 512);
+    Relu4(1, 7, 7, 512, tmp711, tmp715, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp711);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp720 = make_array<uint64_t>(1, 7, 7, 512);
+    FusedBN(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp715, tmp225, tmp226,
+            tmp227, tmp720, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp715);
+  #else
+    uint64_t *tmp717 = make_array<uint64_t>(1, 7, 7, 512);
+    Conv2DWrapper(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp715, tmp225,
+                  tmp717, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp715);
+
+    uint64_t *tmp720 = make_array<uint64_t>(1, 7, 7, 512);
+    ScaleDown4(1, 7, 7, 512, tmp717, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 512, tmp717, tmp226, tmp227, 0, kScale, tmp720, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp717);
+  #endif
+
+    uint64_t *tmp724 = make_array<uint64_t>(1, 7, 7, 512);
+    Relu4(1, 7, 7, 512, tmp720, tmp724, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp720);
+
+    uint64_t *tmp726 = make_array<uint64_t>(1, 7, 7, 2048);
+    Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp724, tmp230,
+                  tmp726, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp724);
+
+    uint64_t *tmp729 = make_array<uint64_t>(1, 7, 7, 2048);
+    ScaleUp4(1, 7, 7, 2048, tmp700, kScale);
+    MatAdd4(1, 7, 7, 2048, tmp726, tmp700, tmp729);
+    ClearMemSecret4(1, 7, 7, 2048, tmp700);
+    ClearMemSecret4(1, 7, 7, 2048, tmp726);
+
+    uint64_t *tmp732 = make_array<uint64_t>(1, 7, 7, 2048);
+    ScaleDown4(1, 7, 7, 2048, tmp729, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 2048, tmp729, tmp231, tmp232, 0, kScale, tmp732, task_number);
+
+    uint64_t *tmp735 = make_array<uint64_t>(1, 7, 7, 2048);
+    Relu4(1, 7, 7, 2048, tmp732, tmp735, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp732);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp740 = make_array<uint64_t>(1, 7, 7, 512);
+    FusedBN(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp735, tmp235, tmp236,
+            tmp237, tmp740, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp735);
+  #else
+    uint64_t *tmp737 = make_array<uint64_t>(1, 7, 7, 512);
+    Conv2DWrapper(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp735, tmp235,
+                  tmp737, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp735);
+
+    uint64_t *tmp740 = make_array<uint64_t>(1, 7, 7, 512);
+    ScaleDown4(1, 7, 7, 512, tmp737, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 512, tmp737, tmp236, tmp237, 0, kScale, tmp740, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp737);
+  #endif
+
+    uint64_t *tmp744 = make_array<uint64_t>(1, 7, 7, 512);
+    Relu4(1, 7, 7, 512, tmp740, tmp744, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp740);
+
+  #if USE_FUSED_BN
+    uint64_t *tmp749 = make_array<uint64_t>(1, 7, 7, 512);
+    FusedBN(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp744, tmp240, tmp241,
+            tmp242, tmp749, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp744);
+  #else
+    uint64_t *tmp746 = make_array<uint64_t>(1, 7, 7, 512);
+    Conv2DWrapper(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp744, tmp240,
+                  tmp746, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp744);
+
+    uint64_t *tmp749 = make_array<uint64_t>(1, 7, 7, 512);
+    ScaleDown4(1, 7, 7, 512, tmp746, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 512, tmp746, tmp241, tmp242, 0, kScale, tmp749, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp746);
+  #endif
+
+    uint64_t *tmp753 = make_array<uint64_t>(1, 7, 7, 512);
+    Relu4(1, 7, 7, 512, tmp749, tmp753, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp749);
+
+    uint64_t *tmp755 = make_array<uint64_t>(1, 7, 7, 2048);
+    Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp753, tmp245, tmp755, task_number);
+    ClearMemSecret4(1, 7, 7, 512, tmp753);
+
+    uint64_t *tmp758 = make_array<uint64_t>(1, 7, 7, 2048);
+    ScaleUp4(1, 7, 7, 2048, tmp729, kScale);
+    MatAdd4(1, 7, 7, 2048, tmp755, tmp729, tmp758);
+    ClearMemSecret4(1, 7, 7, 2048, tmp729);
+    ClearMemSecret4(1, 7, 7, 2048, tmp755);
+
+    uint64_t *tmp761 = make_array<uint64_t>(1, 7, 7, 2048);
+    ScaleDown4(1, 7, 7, 2048, tmp758, kScale, task_number);
+    FusedBatchNorm4411(1, 7, 7, 2048, tmp758, tmp246, tmp247, 0, kScale, tmp761, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp758);
+
+    uint64_t *tmp765 = make_array<uint64_t>(1, 7, 7, 2048);
+    Relu4(1, 7, 7, 2048, tmp761, tmp765, kScale, kDoExtractTruncate, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp761);
+
+    uint64_t *tmp767 = make_array<uint64_t>(1, 1, 1, 2048);
+    AvgPool(1, 1, 1, 2048, 7, 7, 0, 0, 0, 0, 1, 1, 1, 7, 7, 2048, tmp765, tmp767, task_number);
+    ClearMemSecret4(1, 7, 7, 2048, tmp765);
+
+    uint64_t *tmp771 = make_array<uint64_t>(1, 2048);
+
+    int64_t tmp769 = 1;
+
+    int64_t tmp770 = 2;
+    Squeeze24(1, 2048, tmp769, tmp770, 1, 1, 1, 2048, tmp767, tmp771);
+    ClearMemSecret4(1, 1, 1, 2048, tmp767);
+
+    uint64_t *tmp773 = make_array<uint64_t>(1, 1001);
+    MatMul2D(1, 2048, 1001, tmp771, tmp250, tmp773, 0, task_number);
+    ClearMemSecret2(1, 2048, tmp771);
+
+    uint64_t *tmp776 = make_array<uint64_t>(1, 1001);
+    ScaleUp1(1001, tmp251, kScale);
+    MatAddBroadCast2(1, 1001, tmp773, tmp251, tmp776);
+    ClearMemSecret2(1, 1001, tmp773);
+
+    int64_t tmp779 = 1;
+
+    uint64_t *tmp780 = make_array<uint64_t>(1);
+    ArgMax1(1, 1, 1001, tmp776, tmp779, tmp780, task_number);
+    ClearMemPublic(tmp779);
+    EndComputation(task_number);
+
+    std::vector<double> prediction_vector(1001);
+    for (uint64_t i0 = 0; i0 < 1001; i0++) {
+    prediction_vector[i0] = funcReconstruct2PCCons(Arr1DIdxRowM(tmp776, 1001, i0), 2, task_number) / 
+      std::pow(4., kScale);
+    }
+    ClearMemSecret2(1, 1001, tmp776);
+    if (party == CLIENT) {
+    std::sort(prediction_vector.begin(), prediction_vector.end(), 
+          [](double u, double v) { return u > v; });
+    printf("top-10 values from ResNet50\n");
+    printf("[");
+    for (uint64_t i = 0; i < 10; ++i) {
+      printf("%.7f,", prediction_vector[i]);
+    }
+    printf("]\n");
+    }
+
+    for (uint64_t i0 = (uint64_t)0; i0 < 1; i0++) {
+      auto pred = funcReconstruct2PCCons(Arr1DIdxRowM(tmp780, 1, i0), 2, task_number);
+      if (party == CLIENT) {
+      printf("predicted label=%lld\n", pred);
+    }
+    }
+
+    finalize(task_number);
+  };
+
+  // Create LayerProcessor instances for each layer
+  LayerProcessor layer1Processor(layer1, im_batch_size);
+  LayerProcessor layer2Processor(layer2, im_batch_size);
+  LayerProcessor layer3Processor(layer3, im_batch_size);
+  LayerProcessor layer4Processor(layer4, im_batch_size);
+
+  // Link the processors to form a pipeline
+  layer1Processor.setNextLayerProcessor(&layer2Processor);
+  layer2Processor.setNextLayerProcessor(&layer3Processor);
+  layer3Processor.setNextLayerProcessor(&layer4Processor);
+
+  layer1Processor.start();
+  layer2Processor.start();
+  layer3Processor.start();
+  layer4Processor.start();
+
+  std::vector<uint64_t*> images = loadInput(im_batch_size);
+
+  for (int tn = 0; tn < im_batch_size; tn++) {
+    layer1Processor.addTask(images[tn], tn + 1); // Add task to the first processor
+  }
+
+  while (true) {
+    {
+      std::unique_lock<std::mutex> lock(layer4Processor.mtx);
+      if (layer4Processor.getPendingTasks() == 0) {
+        break;
+      }
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+
+  images.clear();
+
   ClearMemSecret4(7, 7, 3, 64, tmp1);
-#if USE_CHEETAH
-  kIsSharedInput = true;
-#endif
-
-  uint64_t *tmp259 = make_array<uint64_t>(1, 56, 56, 64);
-  MaxPool(1, 56, 56, 64, 3, 3, 0, 1, 0, 1, 2, 2, 1, 112, 112, 64, tmp256,
-          tmp259);
-  ClearMemSecret4(1, 112, 112, 64, tmp256);
-
-  uint64_t *tmp261 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp259, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp259, tmp2, tmp3, 0, kScale, tmp261);
-  ClearMemSecret1(64, tmp3);
-  ClearMemSecret4(1, 56, 56, 64, tmp259);
   ClearMemSecret1(64, tmp2);
-
-  uint64_t *tmp265 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp261, tmp265, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp261);
-
-  uint64_t *tmp267 = make_array<uint64_t>(1, 56, 56, 256);
-  Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp265, tmp6,
-                tmp267);
+  ClearMemSecret1(64, tmp3);
   ClearMemSecret4(1, 1, 64, 256, tmp6);
-
-#if USE_FUSED_BN
-  uint64_t *tmp272 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 64, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp265, tmp7, tmp8, tmp9, tmp272);
-  ClearMemSecret4(1, 56, 56, 64, tmp265);
   ClearMemSecret4(1, 1, 64, 64, tmp7);
   ClearMemSecret1(64, tmp8);
   ClearMemSecret1(64, tmp9);
-#else
-  uint64_t *tmp269 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 64, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp265, tmp7, tmp269);
-  ClearMemSecret4(1, 56, 56, 64, tmp265);
-  ClearMemSecret4(1, 1, 64, 64, tmp7);
-
-  uint64_t *tmp272 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp269, kScale);
-
-  FusedBatchNorm4411(1, 56, 56, 64, tmp269, tmp8, tmp9, 0, kScale, tmp272);
-
-  ClearMemSecret4(1, 56, 56, 64, tmp269);
-  ClearMemSecret1(64, tmp8);
-  ClearMemSecret1(64, tmp9);
-#endif
-
-  uint64_t *tmp276 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp272, tmp276, kScale, kDoExtractTruncate);
-
-  ClearMemSecret4(1, 56, 56, 64, tmp272);
-
-#if USE_FUSED_BN
-  uint64_t *tmp281 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp276, tmp12, tmp13,
-          tmp14, tmp281);
-  ClearMemSecret4(1, 56, 56, 64, tmp276);
   ClearMemSecret4(3, 3, 64, 64, tmp12);
   ClearMemSecret1(64, tmp13);
   ClearMemSecret1(64, tmp14);
-#else
-  uint64_t *tmp278 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp276, tmp12,
-                tmp278);
-  ClearMemSecret4(1, 56, 56, 64, tmp276);
-  ClearMemSecret4(3, 3, 64, 64, tmp12);
-
-  uint64_t *tmp281 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp278, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp278, tmp13, tmp14, 0, kScale, tmp281);
-  ClearMemSecret4(1, 56, 56, 64, tmp278);
-  ClearMemSecret1(64, tmp13);
-  ClearMemSecret1(64, tmp14);
-#endif
-  uint64_t *tmp285 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp281, tmp285, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp281);
-
-  uint64_t *tmp287 = make_array<uint64_t>(1, 56, 56, 256);
-  Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp285, tmp17,
-                tmp287);
-
-  uint64_t *tmp290 = make_array<uint64_t>(1, 56, 56, 256);
-  MatAdd4(1, 56, 56, 256, tmp287, tmp267, tmp290);
-  uint64_t *tmp293 = make_array<uint64_t>(1, 56, 56, 256);
-  ScaleDown4(1, 56, 56, 256, tmp290, kScale);
-  FusedBatchNorm4411(1, 56, 56, 256, tmp290, tmp18, tmp19, 0, kScale, tmp293);
-  ClearMemSecret4(1, 56, 56, 64, tmp285);
-  ClearMemSecret4(1, 56, 56, 256, tmp287);
-  ClearMemSecret4(1, 56, 56, 256, tmp267);
   ClearMemSecret4(1, 1, 64, 256, tmp17);
   ClearMemSecret1(256, tmp18);
   ClearMemSecret1(256, tmp19);
-
-  uint64_t *tmp296 = make_array<uint64_t>(1, 56, 56, 256);
-  Relu4(1, 56, 56, 256, tmp293, tmp296, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 256, tmp293);
-
-#if USE_FUSED_BN
-  uint64_t *tmp301 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp296, tmp22, tmp23,
-          tmp24, tmp301);
-  ClearMemSecret4(1, 56, 56, 256, tmp296);
   ClearMemSecret4(1, 1, 256, 64, tmp22);
   ClearMemSecret1(64, tmp23);
   ClearMemSecret1(64, tmp24);
-#else
-  uint64_t *tmp298 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp296, tmp22,
-                tmp298);
-  ClearMemSecret4(1, 1, 256, 64, tmp22);
-  ClearMemSecret4(1, 56, 56, 256, tmp296);
-
-  uint64_t *tmp301 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp298, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp298, tmp23, tmp24, 0, kScale, tmp301);
-  ClearMemSecret1(64, tmp24);
-  ClearMemSecret1(64, tmp23);
-  ClearMemSecret4(1, 56, 56, 64, tmp298);
-#endif
-
-  uint64_t *tmp305 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp301, tmp305, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp301);
-
-#if USE_FUSED_BN
-  uint64_t *tmp310 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp305, tmp27, tmp28,
-          tmp29, tmp310);
-  ClearMemSecret4(1, 56, 56, 64, tmp305);
   ClearMemSecret4(3, 3, 64, 64, tmp27);
   ClearMemSecret1(64, tmp28);
   ClearMemSecret1(64, tmp29);
-#else
-  uint64_t *tmp307 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp305, tmp27,
-                tmp307);
-  ClearMemSecret4(1, 56, 56, 64, tmp305);
-  ClearMemSecret4(3, 3, 64, 64, tmp27);
-
-  uint64_t *tmp310 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp307, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp307, tmp28, tmp29, 0, kScale, tmp310);
-  ClearMemSecret1(64, tmp29);
-  ClearMemSecret4(1, 56, 56, 64, tmp307);
-  ClearMemSecret1(64, tmp28);
-#endif
-
-  uint64_t *tmp314 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp310, tmp314, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp310);
-
-  uint64_t *tmp316 = make_array<uint64_t>(1, 56, 56, 256);
-  Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp314, tmp32,
-                tmp316);
-  ClearMemSecret4(1, 56, 56, 64, tmp314);
   ClearMemSecret4(1, 1, 64, 256, tmp32);
-
-  uint64_t *tmp319 = make_array<uint64_t>(1, 56, 56, 256);
-  ScaleUp4(1, 56, 56, 256, tmp290, kScale);
-  MatAdd4(1, 56, 56, 256, tmp316, tmp290, tmp319);
-  ClearMemSecret4(1, 56, 56, 256, tmp316);
-  ClearMemSecret4(1, 56, 56, 256, tmp290);
-
-  uint64_t *tmp322 = make_array<uint64_t>(1, 56, 56, 256);
-  ScaleDown4(1, 56, 56, 256, tmp319, kScale);
-  FusedBatchNorm4411(1, 56, 56, 256, tmp319, tmp33, tmp34, 0, kScale, tmp322);
   ClearMemSecret1(256, tmp34);
   ClearMemSecret1(256, tmp33);
-
-  uint64_t *tmp325 = make_array<uint64_t>(1, 56, 56, 256);
-  Relu4(1, 56, 56, 256, tmp322, tmp325, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 256, tmp322);
-
-#if USE_FUSED_BN
-  uint64_t *tmp330 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp325, tmp37, tmp38,
-          tmp39, tmp330);
-  ClearMemSecret4(1, 56, 56, 256, tmp325);
   ClearMemSecret4(1, 1, 256, 64, tmp37);
   ClearMemSecret1(64, tmp38);
   ClearMemSecret1(64, tmp39);
-#else
-  uint64_t *tmp327 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 256, 1, 1, 64, 0, 0, 0, 0, 1, 1, tmp325, tmp37,
-                tmp327);
-  ClearMemSecret4(1, 1, 256, 64, tmp37);
-  ClearMemSecret4(1, 56, 56, 256, tmp325);
-
-  uint64_t *tmp330 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp327, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp327, tmp38, tmp39, 0, kScale, tmp330);
-  ClearMemSecret1(64, tmp38);
-  ClearMemSecret1(64, tmp39);
-  ClearMemSecret4(1, 56, 56, 64, tmp327);
-#endif
-
-  uint64_t *tmp334 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp330, tmp334, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp330);
-
-#if USE_FUSED_BN
-  uint64_t *tmp339 = make_array<uint64_t>(1, 56, 56, 64);
-  FusedBN(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp334, tmp42, tmp43,
-          tmp44, tmp339);
-  ClearMemSecret4(1, 56, 56, 64, tmp334);
   ClearMemSecret4(3, 3, 64, 64, tmp42);
   ClearMemSecret1(64, tmp43);
   ClearMemSecret1(64, tmp44);
-#else
-  uint64_t *tmp336 = make_array<uint64_t>(1, 56, 56, 64);
-  Conv2DWrapper(1, 56, 56, 64, 3, 3, 64, 1, 1, 1, 1, 1, 1, tmp334, tmp42,
-                tmp336);
-  ClearMemSecret4(3, 3, 64, 64, tmp42);
-  ClearMemSecret4(1, 56, 56, 64, tmp334);
-
-  uint64_t *tmp339 = make_array<uint64_t>(1, 56, 56, 64);
-  ScaleDown4(1, 56, 56, 64, tmp336, kScale);
-  FusedBatchNorm4411(1, 56, 56, 64, tmp336, tmp43, tmp44, 0, kScale, tmp339);
-  ClearMemSecret1(64, tmp44);
-  ClearMemSecret1(64, tmp43);
-  ClearMemSecret4(1, 56, 56, 64, tmp336);
-#endif
-
-  uint64_t *tmp343 = make_array<uint64_t>(1, 56, 56, 64);
-  Relu4(1, 56, 56, 64, tmp339, tmp343, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 64, tmp339);
-
-  uint64_t *tmp345 = make_array<uint64_t>(1, 56, 56, 256);
-  Conv2DWrapper(1, 56, 56, 64, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp343, tmp47,
-                tmp345);
   ClearMemSecret4(1, 1, 64, 256, tmp47);
-  ClearMemSecret4(1, 56, 56, 64, tmp343);
-
-  uint64_t *tmp348 = make_array<uint64_t>(1, 56, 56, 256);
-  ScaleUp4(1, 56, 56, 256, tmp319, kScale);
-  MatAdd4(1, 56, 56, 256, tmp345, tmp319, tmp348);
-  ClearMemSecret4(1, 56, 56, 256, tmp319);
-  ClearMemSecret4(1, 56, 56, 256, tmp345);
-
-  uint64_t *tmp351 = make_array<uint64_t>(1, 56, 56, 256);
-  ScaleDown4(1, 56, 56, 256, tmp348, kScale);
-  FusedBatchNorm4411(1, 56, 56, 256, tmp348, tmp48, tmp49, 0, kScale, tmp351);
   ClearMemSecret1(256, tmp48);
-  ClearMemSecret4(1, 56, 56, 256, tmp348);
   ClearMemSecret1(256, tmp49);
-
-  uint64_t *tmp355 = make_array<uint64_t>(1, 56, 56, 256);
-  Relu4(1, 56, 56, 256, tmp351, tmp355, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 256, tmp351);
-
-  int64_t *tmp357 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)1, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)1, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)2, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)2, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp357, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp358 = make_array<uint64_t>(1, 56, 56, 256);
-  Pad442(1, 56, 56, 256, 1, 56, 56, 256, tmp355, 4, 2, tmp357, tmp358);
-  ClearMemPublic2(4, 2, tmp357);
-
-  uint64_t *tmp360 = make_array<uint64_t>(1, 28, 28, 512);
-  Conv2DWrapper(1, 56, 56, 256, 1, 1, 512, 0, 0, 0, 0, 2, 2, tmp358, tmp52,
-                tmp360);
   ClearMemSecret4(1, 1, 256, 512, tmp52);
-  ClearMemSecret4(1, 56, 56, 256, tmp358);
-
-#if USE_FUSED_BN
-  uint64_t *tmp366 = make_array<uint64_t>(1, 56, 56, 128);
-  FusedBN(1, 56, 56, 256, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp355, tmp53, tmp54,
-          tmp55, tmp366);
-  ClearMemSecret4(1, 56, 56, 256, tmp355);
   ClearMemSecret4(1, 1, 256, 128, tmp53);
   ClearMemSecret1(128, tmp55);
   ClearMemSecret1(128, tmp54);
-#else
-  uint64_t *tmp363 = make_array<uint64_t>(1, 56, 56, 128);
-  Conv2DWrapper(1, 56, 56, 256, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp355, tmp53,
-                tmp363);
-  ClearMemSecret4(1, 1, 256, 128, tmp53);
-  ClearMemSecret4(1, 56, 56, 256, tmp355);
-
-  uint64_t *tmp366 = make_array<uint64_t>(1, 56, 56, 128);
-  ScaleDown4(1, 56, 56, 128, tmp363, kScale);
-  FusedBatchNorm4411(1, 56, 56, 128, tmp363, tmp54, tmp55, 0, kScale, tmp366);
-  ClearMemSecret4(1, 56, 56, 128, tmp363);
-  ClearMemSecret1(128, tmp54);
-  ClearMemSecret1(128, tmp55);
-#endif
-
-  uint64_t *tmp370 = make_array<uint64_t>(1, 56, 56, 128);
-  Relu4(1, 56, 56, 128, tmp366, tmp370, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 56, 56, 128, tmp366);
-
-  int64_t *tmp372 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)1, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)1, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)2, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)2, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp372, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp373 = make_array<uint64_t>(1, 58, 58, 128);
-  Pad442(1, 58, 58, 128, 1, 56, 56, 128, tmp370, 4, 2, tmp372, tmp373);
-  ClearMemPublic2(4, 2, tmp372);
-  ClearMemSecret4(1, 56, 56, 128, tmp370);
-
-#if USE_FUSED_BN
-  uint64_t *tmp379 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 58, 58, 128, 3, 3, 128, 0, 0, 0, 0, 2, 2, tmp373, tmp58, tmp59,
-          tmp60, tmp379);
-  ClearMemSecret4(1, 58, 58, 128, tmp373);
   ClearMemSecret4(3, 3, 128, 128, tmp58);
   ClearMemSecret1(128, tmp59);
   ClearMemSecret1(128, tmp60);
-#else
-  uint64_t *tmp376 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 58, 58, 128, 3, 3, 128, 0, 0, 0, 0, 2, 2, tmp373, tmp58,
-                tmp376);
-  ClearMemSecret4(3, 3, 128, 128, tmp58);
-  ClearMemSecret4(1, 58, 58, 128, tmp373);
-
-  uint64_t *tmp379 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp376, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp376, tmp59, tmp60, 0, kScale, tmp379);
-  ClearMemSecret1(128, tmp59);
-  ClearMemSecret4(1, 28, 28, 128, tmp376);
-  ClearMemSecret1(128, tmp60);
-#endif
-
-  uint64_t *tmp383 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp379, tmp383, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp379);
-
-  uint64_t *tmp385 = make_array<uint64_t>(1, 28, 28, 512);
-  Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp383, tmp63,
-                tmp385);
   ClearMemSecret4(1, 1, 128, 512, tmp63);
-  ClearMemSecret4(1, 28, 28, 128, tmp383);
-
-  uint64_t *tmp388 = make_array<uint64_t>(1, 28, 28, 512);
-  MatAdd4(1, 28, 28, 512, tmp385, tmp360, tmp388);
-  ClearMemSecret4(1, 28, 28, 512, tmp385);
-  ClearMemSecret4(1, 28, 28, 512, tmp360);
-
-  uint64_t *tmp391 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleDown4(1, 28, 28, 512, tmp388, kScale);
-  FusedBatchNorm4411(1, 28, 28, 512, tmp388, tmp64, tmp65, 0, kScale, tmp391);
   ClearMemSecret1(512, tmp64);
   ClearMemSecret1(512, tmp65);
-
-  uint64_t *tmp394 = make_array<uint64_t>(1, 28, 28, 512);
-  Relu4(1, 28, 28, 512, tmp391, tmp394, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 512, tmp391);
-
-#if USE_FUSED_BN
-  uint64_t *tmp399 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp394, tmp68, tmp69,
-          tmp70, tmp399);
-
-  ClearMemSecret4(1, 28, 28, 512, tmp394);
   ClearMemSecret4(1, 1, 512, 128, tmp68);
   ClearMemSecret1(128, tmp69);
   ClearMemSecret1(128, tmp70);
-#else
-  uint64_t *tmp396 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp394, tmp68,
-                tmp396);
-  ClearMemSecret4(1, 28, 28, 512, tmp394);
-  ClearMemSecret4(1, 1, 512, 128, tmp68);
-
-  uint64_t *tmp399 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp396, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp396, tmp69, tmp70, 0, kScale, tmp399);
-  ClearMemSecret4(1, 28, 28, 128, tmp396);
-  ClearMemSecret1(128, tmp69);
-  ClearMemSecret1(128, tmp70);
-#endif
-
-  uint64_t *tmp403 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp399, tmp403, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp399);
-
-  uint64_t *tmp405 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp403, tmp73,
-                tmp405);
   ClearMemSecret4(3, 3, 128, 128, tmp73);
-  ClearMemSecret4(1, 28, 28, 128, tmp403);
-
-  uint64_t *tmp408 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp405, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp405, tmp74, tmp75, 0, kScale, tmp408);
-  ClearMemSecret4(1, 28, 28, 128, tmp405);
   ClearMemSecret1(128, tmp75);
   ClearMemSecret1(128, tmp74);
-
-  uint64_t *tmp412 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp408, tmp412, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp408);
-
-  uint64_t *tmp414 = make_array<uint64_t>(1, 28, 28, 512);
-  Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp412, tmp78,
-                tmp414);
   ClearMemSecret4(1, 1, 128, 512, tmp78);
-  ClearMemSecret4(1, 28, 28, 128, tmp412);
-
-  uint64_t *tmp417 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleUp4(1, 28, 28, 512, tmp388, kScale);
-  MatAdd4(1, 28, 28, 512, tmp414, tmp388, tmp417);
-  ClearMemSecret4(1, 28, 28, 512, tmp388);
-  ClearMemSecret4(1, 28, 28, 512, tmp414);
-
-  uint64_t *tmp420 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleDown4(1, 28, 28, 512, tmp417, kScale);
-  FusedBatchNorm4411(1, 28, 28, 512, tmp417, tmp79, tmp80, 0, kScale, tmp420);
   ClearMemSecret1(512, tmp80);
   ClearMemSecret1(512, tmp79);
-
-  uint64_t *tmp423 = make_array<uint64_t>(1, 28, 28, 512);
-  Relu4(1, 28, 28, 512, tmp420, tmp423, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 512, tmp420);
-
-#if USE_FUSED_BN
-  uint64_t *tmp428 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp423, tmp83, tmp84,
-          tmp85, tmp428);
-  ClearMemSecret4(1, 28, 28, 512, tmp423);
   ClearMemSecret4(1, 1, 512, 128, tmp83);
   ClearMemSecret1(128, tmp84);
   ClearMemSecret1(128, tmp85);
-#else
-  uint64_t *tmp425 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp423, tmp83,
-                tmp425);
-  ClearMemSecret4(1, 1, 512, 128, tmp83);
-  ClearMemSecret4(1, 28, 28, 512, tmp423);
-
-  uint64_t *tmp428 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp425, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp425, tmp84, tmp85, 0, kScale, tmp428);
-  ClearMemSecret4(1, 28, 28, 128, tmp425);
-  ClearMemSecret1(128, tmp84);
-  ClearMemSecret1(128, tmp85);
-#endif
-
-  uint64_t *tmp432 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp428, tmp432, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp428);
-
-#if USE_FUSED_BN
-  uint64_t *tmp437 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp432, tmp88, tmp89,
-          tmp90, tmp437);
   ClearMemSecret4(3, 3, 128, 128, tmp88);
-  ClearMemSecret4(1, 28, 28, 128, tmp432);
   ClearMemSecret1(128, tmp89);
   ClearMemSecret1(128, tmp90);
-#else
-  uint64_t *tmp434 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp432, tmp88,
-                tmp434);
-  ClearMemSecret4(3, 3, 128, 128, tmp88);
-  ClearMemSecret4(1, 28, 28, 128, tmp432);
-
-  uint64_t *tmp437 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp434, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp434, tmp89, tmp90, 0, kScale, tmp437);
-  ClearMemSecret4(1, 28, 28, 128, tmp434);
-  ClearMemSecret1(128, tmp89);
-  ClearMemSecret1(128, tmp90);
-#endif
-
-  uint64_t *tmp441 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp437, tmp441, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp437);
-
-  uint64_t *tmp443 = make_array<uint64_t>(1, 28, 28, 512);
-  Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp441, tmp93,
-                tmp443);
   ClearMemSecret4(1, 1, 128, 512, tmp93);
-  ClearMemSecret4(1, 28, 28, 128, tmp441);
-
-  uint64_t *tmp446 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleUp4(1, 28, 28, 512, tmp417, kScale);
-  MatAdd4(1, 28, 28, 512, tmp443, tmp417, tmp446);
-  ClearMemSecret4(1, 28, 28, 512, tmp443);
-  ClearMemSecret4(1, 28, 28, 512, tmp417);
-
-  uint64_t *tmp449 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleDown4(1, 28, 28, 512, tmp446, kScale);
-  FusedBatchNorm4411(1, 28, 28, 512, tmp446, tmp94, tmp95, 0, kScale, tmp449);
-  ClearMemSecret1(512, tmp95);
   ClearMemSecret1(512, tmp94);
-
-  uint64_t *tmp452 = make_array<uint64_t>(1, 28, 28, 512);
-  Relu4(1, 28, 28, 512, tmp449, tmp452, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 512, tmp449);
-
-#if USE_FUSED_BN
-  uint64_t *tmp457 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp452, tmp98, tmp99,
-          tmp100, tmp457);
-  ClearMemSecret4(1, 28, 28, 128, tmp452);
+  ClearMemSecret1(512, tmp95);
   ClearMemSecret4(1, 1, 512, 128, tmp98);
   ClearMemSecret1(128, tmp99);
   ClearMemSecret1(128, tmp100);
-#else
-  uint64_t *tmp454 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 512, 1, 1, 128, 0, 0, 0, 0, 1, 1, tmp452, tmp98,
-                tmp454);
-  ClearMemSecret4(1, 1, 512, 128, tmp98);
-  ClearMemSecret4(1, 28, 28, 512, tmp452);
-
-  uint64_t *tmp457 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp454, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp454, tmp99, tmp100, 0, kScale, tmp457);
-  ClearMemSecret1(128, tmp99);
-  ClearMemSecret4(1, 28, 28, 128, tmp454);
-  ClearMemSecret1(128, tmp100);
-#endif
-
-  uint64_t *tmp461 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp457, tmp461, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp457);
-
-#if USE_FUSED_BN
-  uint64_t *tmp466 = make_array<uint64_t>(1, 28, 28, 128);
-  FusedBN(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp461, tmp103, tmp104,
-          tmp105, tmp466);
-  ClearMemSecret4(1, 28, 28, 128, tmp461);
   ClearMemSecret4(3, 3, 128, 128, tmp103);
   ClearMemSecret1(128, tmp104);
   ClearMemSecret1(128, tmp105);
-#else
-  uint64_t *tmp463 = make_array<uint64_t>(1, 28, 28, 128);
-  Conv2DWrapper(1, 28, 28, 128, 3, 3, 128, 1, 1, 1, 1, 1, 1, tmp461, tmp103,
-                tmp463);
-  ClearMemSecret4(1, 28, 28, 128, tmp461);
-  ClearMemSecret4(3, 3, 128, 128, tmp103);
-
-  uint64_t *tmp466 = make_array<uint64_t>(1, 28, 28, 128);
-  ScaleDown4(1, 28, 28, 128, tmp463, kScale);
-  FusedBatchNorm4411(1, 28, 28, 128, tmp463, tmp104, tmp105, 0, kScale, tmp466);
-  ClearMemSecret1(128, tmp105);
-  ClearMemSecret4(1, 28, 28, 128, tmp463);
-  ClearMemSecret1(128, tmp104);
-#endif
-
-  uint64_t *tmp470 = make_array<uint64_t>(1, 28, 28, 128);
-  Relu4(1, 28, 28, 128, tmp466, tmp470, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 128, tmp466);
-
-  uint64_t *tmp472 = make_array<uint64_t>(1, 28, 28, 512);
-  Conv2DWrapper(1, 28, 28, 128, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp470, tmp108,
-                tmp472);
   ClearMemSecret4(1, 1, 128, 512, tmp108);
-  ClearMemSecret4(1, 28, 28, 128, tmp470);
-
-  uint64_t *tmp475 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleUp4(1, 28, 28, 512, tmp446, kScale);
-  MatAdd4(1, 28, 28, 512, tmp472, tmp446, tmp475);
-  ClearMemSecret4(1, 28, 28, 512, tmp472);
-  ClearMemSecret4(1, 28, 28, 512, tmp446);
-
-  uint64_t *tmp478 = make_array<uint64_t>(1, 28, 28, 512);
-  ScaleDown4(1, 28, 28, 512, tmp475, kScale);
-  FusedBatchNorm4411(1, 28, 28, 512, tmp475, tmp109, tmp110, 0, kScale, tmp478);
   ClearMemSecret1(512, tmp109);
   ClearMemSecret1(512, tmp110);
-  ClearMemSecret4(1, 28, 28, 512, tmp475);
-
-  uint64_t *tmp482 = make_array<uint64_t>(1, 28, 28, 512);
-  Relu4(1, 28, 28, 512, tmp478, tmp482, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 512, tmp478);
-
-  int64_t *tmp484 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)1, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)1, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)2, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)2, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp484, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp485 = make_array<uint64_t>(1, 28, 28, 512);
-  Pad442(1, 28, 28, 512, 1, 28, 28, 512, tmp482, 4, 2, tmp484, tmp485);
-  ClearMemPublic2(4, 2, tmp484);
-
-  uint64_t *tmp487 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 28, 28, 512, 1, 1, 1024, 0, 0, 0, 0, 2, 2, tmp485, tmp113,
-                tmp487);
   ClearMemSecret4(1, 1, 512, 1024, tmp113);
-  ClearMemSecret4(1, 28, 28, 512, tmp485);
-
-#if USE_FUSED_BN
-  uint64_t *tmp493 = make_array<uint64_t>(1, 28, 28, 256);
-  FusedBN(1, 28, 28, 512, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp482, tmp114, tmp115,
-          tmp116, tmp493);
   ClearMemSecret4(1, 1, 512, 256, tmp114);
-  ClearMemSecret4(1, 28, 28, 512, tmp482);
-  ClearMemSecret1(256, tmp115);
   ClearMemSecret1(256, tmp116);
-#else
-  uint64_t *tmp490 = make_array<uint64_t>(1, 28, 28, 256);
-  Conv2DWrapper(1, 28, 28, 512, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp482, tmp114,
-                tmp490);
-  ClearMemSecret4(1, 1, 512, 256, tmp114);
-  ClearMemSecret4(1, 28, 28, 512, tmp482);
-
-  uint64_t *tmp493 = make_array<uint64_t>(1, 28, 28, 256);
-  ScaleDown4(1, 28, 28, 256, tmp490, kScale);
-  FusedBatchNorm4411(1, 28, 28, 256, tmp490, tmp115, tmp116, 0, kScale, tmp493);
-  ClearMemSecret4(1, 28, 28, 256, tmp490);
   ClearMemSecret1(256, tmp115);
-  ClearMemSecret1(256, tmp116);
-#endif
-
-  uint64_t *tmp497 = make_array<uint64_t>(1, 28, 28, 256);
-  Relu4(1, 28, 28, 256, tmp493, tmp497, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 28, 28, 256, tmp493);
-
-  int64_t *tmp499 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)1, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)1, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)2, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)2, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp499, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp500 = make_array<uint64_t>(1, 30, 30, 256);
-  Pad442(1, 30, 30, 256, 1, 28, 28, 256, tmp497, 4, 2, tmp499, tmp500);
-  ClearMemPublic2(4, 2, tmp499);
-  ClearMemSecret4(1, 28, 28, 256, tmp497);
-
-#if USE_FUSED_BN
-  uint64_t *tmp506 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 30, 30, 256, 3, 3, 256, 0, 0, 0, 0, 2, 2, tmp500, tmp119, tmp120,
-          tmp121, tmp506);
-  ClearMemSecret4(1, 30, 30, 256, tmp500);
   ClearMemSecret4(3, 3, 256, 256, tmp119);
   ClearMemSecret1(256, tmp120);
   ClearMemSecret1(256, tmp121);
-#else
-  uint64_t *tmp503 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 30, 30, 256, 3, 3, 256, 0, 0, 0, 0, 2, 2, tmp500, tmp119,
-                tmp503);
-  ClearMemSecret4(3, 3, 256, 256, tmp119);
-  ClearMemSecret4(1, 30, 30, 256, tmp500);
-
-  uint64_t *tmp506 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp503, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp503, tmp120, tmp121, 0, kScale, tmp506);
-  ClearMemSecret1(256, tmp120);
-  ClearMemSecret1(256, tmp121);
-  ClearMemSecret4(1, 14, 14, 256, tmp503);
-#endif
-
-  uint64_t *tmp510 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp506, tmp510, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp506);
-
-  uint64_t *tmp512 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp510, tmp124,
-                tmp512);
   ClearMemSecret4(1, 1, 256, 1024, tmp124);
-  ClearMemSecret4(1, 14, 14, 256, tmp510);
-
-  uint64_t *tmp515 = make_array<uint64_t>(1, 14, 14, 1024);
-  MatAdd4(1, 14, 14, 1024, tmp512, tmp487, tmp515);
-  ClearMemSecret4(1, 14, 14, 1024, tmp512);
-  ClearMemSecret4(1, 14, 14, 1024, tmp487);
-
-  uint64_t *tmp518 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp515, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp515, tmp125, tmp126, 0, kScale,
-                     tmp518);
-  ClearMemSecret1(1024, tmp126);
   ClearMemSecret1(1024, tmp125);
-
-  uint64_t *tmp521 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp518, tmp521, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp518);
-
-#if USE_FUSED_BN
-  uint64_t *tmp526 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp521, tmp129, tmp130,
-          tmp131, tmp526);
-  ClearMemSecret4(1, 14, 14, 1024, tmp521);
+  ClearMemSecret1(1024, tmp126);
   ClearMemSecret4(1, 1, 1024, 256, tmp129);
   ClearMemSecret1(256, tmp130);
   ClearMemSecret1(256, tmp131);
-#else
-  uint64_t *tmp523 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp521, tmp129,
-                tmp523);
-  ClearMemSecret4(1, 1, 1024, 256, tmp129);
-  ClearMemSecret4(1, 14, 14, 1024, tmp521);
-
-  uint64_t *tmp526 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp523, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp523, tmp130, tmp131, 0, kScale, tmp526);
-  ClearMemSecret1(256, tmp131);
-  ClearMemSecret1(256, tmp130);
-  ClearMemSecret4(1, 14, 14, 256, tmp523);
-#endif
-
-  uint64_t *tmp530 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp526, tmp530, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp526);
-
-#if USE_FUSED_BN
-  uint64_t *tmp535 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp530, tmp134, tmp135,
-          tmp136, tmp535);
-  ClearMemSecret4(1, 14, 14, 256, tmp530);
   ClearMemSecret4(3, 3, 256, 256, tmp134);
   ClearMemSecret1(256, tmp135);
   ClearMemSecret1(256, tmp136);
-#else
-  uint64_t *tmp532 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp530, tmp134,
-                tmp532);
-  ClearMemSecret4(3, 3, 256, 256, tmp134);
-  ClearMemSecret4(1, 14, 14, 256, tmp530);
-
-  uint64_t *tmp535 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp532, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp532, tmp135, tmp136, 0, kScale, tmp535);
-  ClearMemSecret4(1, 14, 14, 256, tmp532);
-  ClearMemSecret1(256, tmp136);
-  ClearMemSecret1(256, tmp135);
-#endif
-
-  uint64_t *tmp539 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp535, tmp539, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp535);
-
-  uint64_t *tmp541 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp539, tmp139,
-                tmp541);
   ClearMemSecret4(1, 1, 256, 1024, tmp139);
-  ClearMemSecret4(1, 14, 14, 256, tmp539);
-
-  uint64_t *tmp544 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleUp4(1, 14, 14, 1024, tmp515, kScale);
-  MatAdd4(1, 14, 14, 1024, tmp541, tmp515, tmp544);
-  ClearMemSecret4(1, 14, 14, 1024, tmp541);
-  ClearMemSecret4(1, 14, 14, 1024, tmp515);
-
-  uint64_t *tmp547 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp544, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp544, tmp140, tmp141, 0, kScale,
-                     tmp547);
   ClearMemSecret1(1024, tmp141);
   ClearMemSecret1(1024, tmp140);
-
-  uint64_t *tmp550 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp547, tmp550, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp547);
-
-#if USE_FUSED_BN
-  uint64_t *tmp555 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp550, tmp144, tmp145,
-          tmp146, tmp555);
-  ClearMemSecret4(1, 14, 14, 1024, tmp550);
   ClearMemSecret4(1, 1, 1024, 256, tmp144);
   ClearMemSecret1(256, tmp145);
   ClearMemSecret1(256, tmp146);
-#else
-  uint64_t *tmp552 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp550, tmp144,
-                tmp552);
-  ClearMemSecret4(1, 1, 1024, 256, tmp144);
-  ClearMemSecret4(1, 14, 14, 1024, tmp550);
-
-  uint64_t *tmp555 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp552, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp552, tmp145, tmp146, 0, kScale, tmp555);
-  ClearMemSecret1(256, tmp146);
-  ClearMemSecret1(256, tmp145);
-  ClearMemSecret4(1, 14, 14, 256, tmp552);
-#endif
-
-  uint64_t *tmp559 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp555, tmp559, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp555);
-
-#if USE_FUSED_BN
-  uint64_t *tmp564 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp559, tmp149, tmp150,
-          tmp151, tmp564);
-  ClearMemSecret4(1, 14, 14, 256, tmp559);
   ClearMemSecret4(3, 3, 256, 256, tmp149);
   ClearMemSecret1(256, tmp150);
   ClearMemSecret1(256, tmp151);
-#else
-  uint64_t *tmp561 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp559, tmp149,
-                tmp561);
-  ClearMemSecret4(3, 3, 256, 256, tmp149);
-  ClearMemSecret4(1, 14, 14, 256, tmp559);
-
-  uint64_t *tmp564 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp561, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp561, tmp150, tmp151, 0, kScale, tmp564);
-  ClearMemSecret4(1, 14, 14, 256, tmp561);
-  ClearMemSecret1(256, tmp151);
-  ClearMemSecret1(256, tmp150);
-#endif
-
-  uint64_t *tmp568 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp564, tmp568, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp564);
-
-  uint64_t *tmp570 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp568, tmp154,
-                tmp570);
   ClearMemSecret4(1, 1, 256, 1024, tmp154);
-  ClearMemSecret4(1, 14, 14, 256, tmp568);
-
-  uint64_t *tmp573 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleUp4(1, 14, 14, 1024, tmp544, kScale);
-  MatAdd4(1, 14, 14, 1024, tmp570, tmp544, tmp573);
-  ClearMemSecret4(1, 14, 14, 1024, tmp570);
-  ClearMemSecret4(1, 14, 14, 1024, tmp544);
-
-  uint64_t *tmp576 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp573, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp573, tmp155, tmp156, 0, kScale,
-                     tmp576);
   ClearMemSecret1(1024, tmp156);
   ClearMemSecret1(1024, tmp155);
-
-  uint64_t *tmp579 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp576, tmp579, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp576);
-
-#if USE_FUSED_BN
-  uint64_t *tmp584 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp579, tmp159, tmp160,
-          tmp161, tmp584);
-  ClearMemSecret4(1, 14, 14, 1024, tmp579);
   ClearMemSecret4(1, 1, 1024, 256, tmp159);
   ClearMemSecret1(256, tmp160);
   ClearMemSecret1(256, tmp161);
-#else
-  uint64_t *tmp581 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp579, tmp159,
-                tmp581);
-  ClearMemSecret4(1, 1, 1024, 256, tmp159);
-  ClearMemSecret4(1, 14, 14, 1024, tmp579);
-
-  uint64_t *tmp584 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp581, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp581, tmp160, tmp161, 0, kScale, tmp584);
-  ClearMemSecret1(256, tmp161);
-  ClearMemSecret1(256, tmp160);
-  ClearMemSecret4(1, 14, 14, 256, tmp581);
-#endif
-
-  uint64_t *tmp588 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp584, tmp588, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp584);
-
-#if USE_FUSED_BN
-  uint64_t *tmp593 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp588, tmp164, tmp165,
-          tmp166, tmp593);
-  ClearMemSecret4(1, 14, 14, 256, tmp588);
   ClearMemSecret4(3, 3, 256, 256, tmp164);
   ClearMemSecret1(256, tmp165);
   ClearMemSecret1(256, tmp166);
-#else
-  uint64_t *tmp590 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp588, tmp164,
-                tmp590);
-  ClearMemSecret4(3, 3, 256, 256, tmp164);
-  ClearMemSecret4(1, 14, 14, 256, tmp588);
-
-  uint64_t *tmp593 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp590, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp590, tmp165, tmp166, 0, kScale, tmp593);
-  ClearMemSecret4(1, 14, 14, 256, tmp590);
-  ClearMemSecret1(256, tmp166);
-  ClearMemSecret1(256, tmp165);
-#endif
-
-  uint64_t *tmp597 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp593, tmp597, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp593);
-
-  uint64_t *tmp599 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp597, tmp169,
-                tmp599);
   ClearMemSecret4(1, 1, 256, 1024, tmp169);
-  ClearMemSecret4(1, 14, 14, 256, tmp597);
-
-  uint64_t *tmp602 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleUp4(1, 14, 14, 1024, tmp573, kScale);
-  MatAdd4(1, 14, 14, 1024, tmp599, tmp573, tmp602);
-  ClearMemSecret4(1, 14, 14, 1024, tmp599);
-  ClearMemSecret4(1, 14, 14, 1024, tmp573);
-
-  uint64_t *tmp605 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp602, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp602, tmp170, tmp171, 0, kScale,
-                     tmp605);
   ClearMemSecret1(1024, tmp171);
   ClearMemSecret1(1024, tmp170);
-
-  uint64_t *tmp608 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp605, tmp608, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp605);
-
-#if USE_FUSED_BN
-  uint64_t *tmp613 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp608, tmp174, tmp175,
-          tmp176, tmp613);
-  ClearMemSecret4(1, 14, 14, 1024, tmp608);
   ClearMemSecret4(1, 1, 1024, 256, tmp174);
   ClearMemSecret1(256, tmp175);
   ClearMemSecret1(256, tmp176);
-#else
-  uint64_t *tmp610 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp608, tmp174,
-                tmp610);
-  ClearMemSecret4(1, 14, 14, 1024, tmp608);
-  ClearMemSecret4(1, 1, 1024, 256, tmp174);
-
-  uint64_t *tmp613 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp610, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp610, tmp175, tmp176, 0, kScale, tmp613);
-  ClearMemSecret4(1, 14, 14, 256, tmp610);
-  ClearMemSecret1(256, tmp176);
-  ClearMemSecret1(256, tmp175);
-#endif
-
-  uint64_t *tmp617 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp613, tmp617, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp613);
-
-#if USE_FUSED_BN
-  uint64_t *tmp622 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp617, tmp179, tmp180,
-          tmp181, tmp622);
-  ClearMemSecret4(1, 14, 14, 256, tmp617);
   ClearMemSecret4(3, 3, 256, 256, tmp179);
   ClearMemSecret1(256, tmp180);
   ClearMemSecret1(256, tmp181);
-#else
-  uint64_t *tmp619 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp617, tmp179,
-                tmp619);
-  ClearMemSecret4(3, 3, 256, 256, tmp179);
-  ClearMemSecret4(1, 14, 14, 256, tmp617);
-
-  uint64_t *tmp622 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp619, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp619, tmp180, tmp181, 0, kScale, tmp622);
-  ClearMemSecret4(1, 14, 14, 256, tmp619);
-  ClearMemSecret1(256, tmp181);
-  ClearMemSecret1(256, tmp180);
-#endif
-
-  uint64_t *tmp626 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp622, tmp626, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp622);
-
-  uint64_t *tmp628 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp626, tmp184,
-                tmp628);
-  ClearMemSecret4(1, 14, 14, 256, tmp626);
   ClearMemSecret4(1, 1, 256, 1024, tmp184);
-
-  uint64_t *tmp631 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleUp4(1, 14, 14, 1024, tmp602, kScale);
-  MatAdd4(1, 14, 14, 1024, tmp628, tmp602, tmp631);
-  ClearMemSecret4(1, 14, 14, 1024, tmp628);
-  ClearMemSecret4(1, 14, 14, 1024, tmp602);
-
-  uint64_t *tmp634 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp631, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp631, tmp185, tmp186, 0, kScale,
-                     tmp634);
   ClearMemSecret1(1024, tmp186);
   ClearMemSecret1(1024, tmp185);
-
-  uint64_t *tmp637 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp634, tmp637, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp634);
-
-#if USE_FUSED_BN
-  uint64_t *tmp642 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp637, tmp189, tmp190,
-          tmp191, tmp642);
-  ClearMemSecret4(1, 14, 14, 1024, tmp637);
   ClearMemSecret4(1, 1, 1024, 256, tmp189);
   ClearMemSecret1(256, tmp190);
   ClearMemSecret1(256, tmp191);
-#else
-  uint64_t *tmp639 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 256, 0, 0, 0, 0, 1, 1, tmp637, tmp189,
-                tmp639);
-  ClearMemSecret4(1, 1, 1024, 256, tmp189);
-  ClearMemSecret4(1, 14, 14, 1024, tmp637);
-
-  uint64_t *tmp642 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp639, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp639, tmp190, tmp191, 0, kScale, tmp642);
-  ClearMemSecret1(256, tmp190);
-  ClearMemSecret4(1, 14, 14, 256, tmp639);
-  ClearMemSecret1(256, tmp191);
-#endif
-
-  uint64_t *tmp646 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp642, tmp646, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp642);
-
-#if USE_FUSED_BN
-  uint64_t *tmp651 = make_array<uint64_t>(1, 14, 14, 256);
-  FusedBN(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp646, tmp194, tmp195,
-          tmp196, tmp651);
-  ClearMemSecret4(1, 14, 14, 256, tmp646);
   ClearMemSecret4(3, 3, 256, 256, tmp194);
   ClearMemSecret1(256, tmp196);
   ClearMemSecret1(256, tmp195);
-#else
-  uint64_t *tmp648 = make_array<uint64_t>(1, 14, 14, 256);
-  Conv2DWrapper(1, 14, 14, 256, 3, 3, 256, 1, 1, 1, 1, 1, 1, tmp646, tmp194,
-                tmp648);
-  ClearMemSecret4(1, 14, 14, 256, tmp646);
-  ClearMemSecret4(3, 3, 256, 256, tmp194);
-
-  uint64_t *tmp651 = make_array<uint64_t>(1, 14, 14, 256);
-  ScaleDown4(1, 14, 14, 256, tmp648, kScale);
-  FusedBatchNorm4411(1, 14, 14, 256, tmp648, tmp195, tmp196, 0, kScale, tmp651);
-  ClearMemSecret4(1, 14, 14, 256, tmp648);
-  ClearMemSecret1(256, tmp196);
-  ClearMemSecret1(256, tmp195);
-#endif
-
-  uint64_t *tmp655 = make_array<uint64_t>(1, 14, 14, 256);
-  Relu4(1, 14, 14, 256, tmp651, tmp655, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 256, tmp651);
-
-  uint64_t *tmp657 = make_array<uint64_t>(1, 14, 14, 1024);
-  Conv2DWrapper(1, 14, 14, 256, 1, 1, 1024, 0, 0, 0, 0, 1, 1, tmp655, tmp199,
-                tmp657);
-  ClearMemSecret4(1, 14, 14, 256, tmp655);
   ClearMemSecret4(1, 1, 256, 1024, tmp199);
-
-  uint64_t *tmp660 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleUp4(1, 14, 14, 1024, tmp631, kScale);
-  MatAdd4(1, 14, 14, 1024, tmp657, tmp631, tmp660);
-  ClearMemSecret4(1, 14, 14, 1024, tmp657);
-  ClearMemSecret4(1, 14, 14, 1024, tmp631);
-
-  uint64_t *tmp663 = make_array<uint64_t>(1, 14, 14, 1024);
-  ScaleDown4(1, 14, 14, 1024, tmp660, kScale);
-  FusedBatchNorm4411(1, 14, 14, 1024, tmp660, tmp200, tmp201, 0, kScale,
-                     tmp663);
-  ClearMemSecret4(1, 14, 14, 1024, tmp660);
   ClearMemSecret1(1024, tmp200);
   ClearMemSecret1(1024, tmp201);
-
-  uint64_t *tmp667 = make_array<uint64_t>(1, 14, 14, 1024);
-  Relu4(1, 14, 14, 1024, tmp663, tmp667, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 1024, tmp663);
-
-  int64_t *tmp669 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)1, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)1, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)2, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)2, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp669, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp670 = make_array<uint64_t>(1, 14, 14, 1024);
-  Pad442(1, 14, 14, 1024, 1, 14, 14, 1024, tmp667, 4, 2, tmp669, tmp670);
-  ClearMemPublic2(4, 2, tmp669);
-
-  uint64_t *tmp672 = make_array<uint64_t>(1, 7, 7, 2048);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 2048, 0, 0, 0, 0, 2, 2, tmp670, tmp204,
-                tmp672);
-  ClearMemSecret4(1, 14, 14, 1024, tmp670);
   ClearMemSecret4(1, 1, 1024, 2048, tmp204);
-
-#if USE_FUSED_BN
-  uint64_t *tmp678 = make_array<uint64_t>(1, 14, 14, 512);
-  FusedBN(1, 14, 14, 1024, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp667, tmp205, tmp206,
-          tmp207, tmp678);
-  ClearMemSecret4(1, 14, 14, 1024, tmp667);
   ClearMemSecret4(1, 1, 1024, 512, tmp205);
   ClearMemSecret1(512, tmp206);
   ClearMemSecret1(512, tmp207);
-#else
-  uint64_t *tmp675 = make_array<uint64_t>(1, 14, 14, 512);
-  Conv2DWrapper(1, 14, 14, 1024, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp667, tmp205,
-                tmp675);
-  ClearMemSecret4(1, 14, 14, 1024, tmp667);
-  ClearMemSecret4(1, 1, 1024, 512, tmp205);
-
-  uint64_t *tmp678 = make_array<uint64_t>(1, 14, 14, 512);
-  ScaleDown4(1, 14, 14, 512, tmp675, kScale);
-  FusedBatchNorm4411(1, 14, 14, 512, tmp675, tmp206, tmp207, 0, kScale, tmp678);
-  ClearMemSecret1(512, tmp206);
-  ClearMemSecret1(512, tmp207);
-  ClearMemSecret4(1, 14, 14, 512, tmp675);
-#endif
-
-  uint64_t *tmp682 = make_array<uint64_t>(1, 14, 14, 512);
-  Relu4(1, 14, 14, 512, tmp678, tmp682, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 14, 14, 512, tmp678);
-
-  int64_t *tmp684 = make_array<int64_t>(4, 2);
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)0, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)0, (int64_t)1) = 0;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)1, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)1, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)2, (int64_t)0) = 1;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)2, (int64_t)1) = 1;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)3, (int64_t)0) = 0;
-  Arr2DIdxRowM(tmp684, 4, 2, (int64_t)3, (int64_t)1) = 0;
-
-  uint64_t *tmp685 = make_array<uint64_t>(1, 16, 16, 512);
-  Pad442(1, 16, 16, 512, 1, 14, 14, 512, tmp682, 4, 2, tmp684, tmp685);
-  ClearMemPublic2(4, 2, tmp684);
-  ClearMemSecret4(1, 14, 14, 512, tmp682);
-
-#if USE_FUSED_BN
-  uint64_t *tmp691 = make_array<uint64_t>(1, 7, 7, 512);
-  FusedBN(1, 16, 16, 512, 3, 3, 512, 0, 0, 0, 0, 2, 2, tmp685, tmp210, tmp211,
-          tmp212, tmp691);
-  ClearMemSecret4(1, 16, 16, 512, tmp685);
   ClearMemSecret4(3, 3, 512, 512, tmp210);
   ClearMemSecret1(512, tmp211);
   ClearMemSecret1(512, tmp212);
-#else
-  uint64_t *tmp688 = make_array<uint64_t>(1, 7, 7, 512);
-  Conv2DWrapper(1, 16, 16, 512, 3, 3, 512, 0, 0, 0, 0, 2, 2, tmp685, tmp210,
-                tmp688);
-  ClearMemSecret4(3, 3, 512, 512, tmp210);
-  ClearMemSecret4(1, 16, 16, 512, tmp685);
-
-  uint64_t *tmp691 = make_array<uint64_t>(1, 7, 7, 512);
-  ScaleDown4(1, 7, 7, 512, tmp688, kScale);
-  FusedBatchNorm4411(1, 7, 7, 512, tmp688, tmp211, tmp212, 0, kScale, tmp691);
-  ClearMemSecret1(512, tmp211);
-  ClearMemSecret1(512, tmp212);
-  ClearMemSecret4(1, 7, 7, 512, tmp688);
-#endif
-
-  uint64_t *tmp695 = make_array<uint64_t>(1, 7, 7, 512);
-  Relu4(1, 7, 7, 512, tmp691, tmp695, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 512, tmp691);
-
-  uint64_t *tmp697 = make_array<uint64_t>(1, 7, 7, 2048);
-  Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp695, tmp215,
-                tmp697);
   ClearMemSecret4(1, 1, 512, 2048, tmp215);
-  ClearMemSecret4(1, 7, 7, 512, tmp695);
-
-  uint64_t *tmp700 = make_array<uint64_t>(1, 7, 7, 2048);
-  MatAdd4(1, 7, 7, 2048, tmp697, tmp672, tmp700);
-  ClearMemSecret4(1, 7, 7, 2048, tmp672);
-  ClearMemSecret4(1, 7, 7, 2048, tmp697);
-
-  uint64_t *tmp703 = make_array<uint64_t>(1, 7, 7, 2048);
-  ScaleDown4(1, 7, 7, 2048, tmp700, kScale);
-  FusedBatchNorm4411(1, 7, 7, 2048, tmp700, tmp216, tmp217, 0, kScale, tmp703);
   ClearMemSecret1(2048, tmp217);
   ClearMemSecret1(2048, tmp216);
-
-  uint64_t *tmp706 = make_array<uint64_t>(1, 7, 7, 2048);
-  Relu4(1, 7, 7, 2048, tmp703, tmp706, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 2048, tmp703);
-
-#if USE_FUSED_BN
-  uint64_t *tmp711 = make_array<uint64_t>(1, 7, 7, 512);
-  FusedBN(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp706, tmp220, tmp221,
-          tmp222, tmp711);
-  ClearMemSecret4(1, 7, 7, 2048, tmp706);
   ClearMemSecret4(1, 1, 2048, 512, tmp220);
   ClearMemSecret1(512, tmp222);
   ClearMemSecret1(512, tmp221);
-#else
-  uint64_t *tmp708 = make_array<uint64_t>(1, 7, 7, 512);
-  Conv2DWrapper(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp706, tmp220,
-                tmp708);
-  ClearMemSecret4(1, 1, 2048, 512, tmp220);
-  ClearMemSecret4(1, 7, 7, 2048, tmp706);
-
-  uint64_t *tmp711 = make_array<uint64_t>(1, 7, 7, 512);
-  ScaleDown4(1, 7, 7, 512, tmp708, kScale);
-  FusedBatchNorm4411(1, 7, 7, 512, tmp708, tmp221, tmp222, 0, kScale, tmp711);
-  ClearMemSecret4(1, 7, 7, 512, tmp708);
-  ClearMemSecret1(512, tmp222);
-  ClearMemSecret1(512, tmp221);
-#endif
-
-  uint64_t *tmp715 = make_array<uint64_t>(1, 7, 7, 512);
-  Relu4(1, 7, 7, 512, tmp711, tmp715, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 512, tmp711);
-
-#if USE_FUSED_BN
-  uint64_t *tmp720 = make_array<uint64_t>(1, 7, 7, 512);
-  FusedBN(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp715, tmp225, tmp226,
-          tmp227, tmp720);
-  ClearMemSecret4(1, 7, 7, 512, tmp715);
   ClearMemSecret4(3, 3, 512, 512, tmp225);
   ClearMemSecret1(512, tmp226);
   ClearMemSecret1(512, tmp227);
-#else
-  uint64_t *tmp717 = make_array<uint64_t>(1, 7, 7, 512);
-  Conv2DWrapper(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp715, tmp225,
-                tmp717);
-  ClearMemSecret4(1, 7, 7, 512, tmp715);
-  ClearMemSecret4(3, 3, 512, 512, tmp225);
-
-  uint64_t *tmp720 = make_array<uint64_t>(1, 7, 7, 512);
-  ScaleDown4(1, 7, 7, 512, tmp717, kScale);
-  FusedBatchNorm4411(1, 7, 7, 512, tmp717, tmp226, tmp227, 0, kScale, tmp720);
-  ClearMemSecret1(512, tmp227);
-  ClearMemSecret1(512, tmp226);
-  ClearMemSecret4(1, 7, 7, 512, tmp717);
-#endif
-
-  uint64_t *tmp724 = make_array<uint64_t>(1, 7, 7, 512);
-  Relu4(1, 7, 7, 512, tmp720, tmp724, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 512, tmp720);
-
-  uint64_t *tmp726 = make_array<uint64_t>(1, 7, 7, 2048);
-  Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp724, tmp230,
-                tmp726);
-  ClearMemSecret4(1, 7, 7, 512, tmp724);
   ClearMemSecret4(1, 1, 512, 2048, tmp230);
-
-  uint64_t *tmp729 = make_array<uint64_t>(1, 7, 7, 2048);
-  ScaleUp4(1, 7, 7, 2048, tmp700, kScale);
-  MatAdd4(1, 7, 7, 2048, tmp726, tmp700, tmp729);
-  ClearMemSecret4(1, 7, 7, 2048, tmp700);
-  ClearMemSecret4(1, 7, 7, 2048, tmp726);
-
-  uint64_t *tmp732 = make_array<uint64_t>(1, 7, 7, 2048);
-  ScaleDown4(1, 7, 7, 2048, tmp729, kScale);
-  FusedBatchNorm4411(1, 7, 7, 2048, tmp729, tmp231, tmp232, 0, kScale, tmp732);
   ClearMemSecret1(2048, tmp231);
   ClearMemSecret1(2048, tmp232);
-
-  uint64_t *tmp735 = make_array<uint64_t>(1, 7, 7, 2048);
-  Relu4(1, 7, 7, 2048, tmp732, tmp735, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 2048, tmp732);
-
-#if USE_FUSED_BN
-  uint64_t *tmp740 = make_array<uint64_t>(1, 7, 7, 512);
-  FusedBN(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp735, tmp235, tmp236,
-          tmp237, tmp740);
-  ClearMemSecret4(1, 7, 7, 2048, tmp735);
   ClearMemSecret4(1, 1, 2048, 512, tmp235);
   ClearMemSecret1(512, tmp236);
   ClearMemSecret1(512, tmp237);
-#else
-  uint64_t *tmp737 = make_array<uint64_t>(1, 7, 7, 512);
-  Conv2DWrapper(1, 7, 7, 2048, 1, 1, 512, 0, 0, 0, 0, 1, 1, tmp735, tmp235,
-                tmp737);
-  ClearMemSecret4(1, 7, 7, 2048, tmp735);
-  ClearMemSecret4(1, 1, 2048, 512, tmp235);
-
-  uint64_t *tmp740 = make_array<uint64_t>(1, 7, 7, 512);
-  ScaleDown4(1, 7, 7, 512, tmp737, kScale);
-  FusedBatchNorm4411(1, 7, 7, 512, tmp737, tmp236, tmp237, 0, kScale, tmp740);
-  ClearMemSecret1(512, tmp237);
-  ClearMemSecret1(512, tmp236);
-  ClearMemSecret4(1, 7, 7, 512, tmp737);
-#endif
-
-  uint64_t *tmp744 = make_array<uint64_t>(1, 7, 7, 512);
-  Relu4(1, 7, 7, 512, tmp740, tmp744, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 512, tmp740);
-
-#if USE_FUSED_BN
-  uint64_t *tmp749 = make_array<uint64_t>(1, 7, 7, 512);
-  FusedBN(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp744, tmp240, tmp241,
-          tmp242, tmp749);
-  ClearMemSecret4(1, 7, 7, 512, tmp744);
   ClearMemSecret4(3, 3, 512, 512, tmp240);
   ClearMemSecret1(512, tmp241);
   ClearMemSecret1(512, tmp242);
-#else
-  uint64_t *tmp746 = make_array<uint64_t>(1, 7, 7, 512);
-  Conv2DWrapper(1, 7, 7, 512, 3, 3, 512, 1, 1, 1, 1, 1, 1, tmp744, tmp240,
-                tmp746);
-  ClearMemSecret4(3, 3, 512, 512, tmp240);
-  ClearMemSecret4(1, 7, 7, 512, tmp744);
-
-  uint64_t *tmp749 = make_array<uint64_t>(1, 7, 7, 512);
-  ScaleDown4(1, 7, 7, 512, tmp746, kScale);
-  FusedBatchNorm4411(1, 7, 7, 512, tmp746, tmp241, tmp242, 0, kScale, tmp749);
-  ClearMemSecret1(512, tmp242);
-  ClearMemSecret4(1, 7, 7, 512, tmp746);
-  ClearMemSecret1(512, tmp241);
-#endif
-
-  uint64_t *tmp753 = make_array<uint64_t>(1, 7, 7, 512);
-  Relu4(1, 7, 7, 512, tmp749, tmp753, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 512, tmp749);
-
-  uint64_t *tmp755 = make_array<uint64_t>(1, 7, 7, 2048);
-  Conv2DWrapper(1, 7, 7, 512, 1, 1, 2048, 0, 0, 0, 0, 1, 1, tmp753, tmp245, tmp755);
-  ClearMemSecret4(1, 7, 7, 512, tmp753);
   ClearMemSecret4(1, 1, 512, 2048, tmp245);
-
-  uint64_t *tmp758 = make_array<uint64_t>(1, 7, 7, 2048);
-  ScaleUp4(1, 7, 7, 2048, tmp729, kScale);
-  MatAdd4(1, 7, 7, 2048, tmp755, tmp729, tmp758);
-  ClearMemSecret4(1, 7, 7, 2048, tmp729);
-  ClearMemSecret4(1, 7, 7, 2048, tmp755);
-
-  uint64_t *tmp761 = make_array<uint64_t>(1, 7, 7, 2048);
-  ScaleDown4(1, 7, 7, 2048, tmp758, kScale);
-  FusedBatchNorm4411(1, 7, 7, 2048, tmp758, tmp246, tmp247, 0, kScale, tmp761);
-  ClearMemSecret4(1, 7, 7, 2048, tmp758);
   ClearMemSecret1(2048, tmp247);
   ClearMemSecret1(2048, tmp246);
-
-  uint64_t *tmp765 = make_array<uint64_t>(1, 7, 7, 2048);
-  Relu4(1, 7, 7, 2048, tmp761, tmp765, kScale, kDoExtractTruncate);
-  ClearMemSecret4(1, 7, 7, 2048, tmp761);
-
-  uint64_t *tmp767 = make_array<uint64_t>(1, 1, 1, 2048);
-  AvgPool(1, 1, 1, 2048, 7, 7, 0, 0, 0, 0, 1, 1, 1, 7, 7, 2048, tmp765, tmp767);
-  ClearMemSecret4(1, 7, 7, 2048, tmp765);
-
-  uint64_t *tmp771 = make_array<uint64_t>(1, 2048);
-
-  int64_t tmp769 = 1;
-
-  int64_t tmp770 = 2;
-  Squeeze24(1, 2048, tmp769, tmp770, 1, 1, 1, 2048, tmp767, tmp771);
-  ClearMemSecret4(1, 1, 1, 2048, tmp767);
-
-  uint64_t *tmp773 = make_array<uint64_t>(1, 1001);
-  MatMul2D(1, 2048, 1001, tmp771, tmp250, tmp773, 0);
   ClearMemSecret2(2048, 1001, tmp250);
-  ClearMemSecret2(1, 2048, tmp771);
-
-  uint64_t *tmp776 = make_array<uint64_t>(1, 1001);
-  ScaleUp1(1001, tmp251, kScale);
-  MatAddBroadCast2(1, 1001, tmp773, tmp251, tmp776);
-  ClearMemSecret2(1, 1001, tmp773);
   ClearMemSecret1(1001, tmp251);
 
-  int64_t tmp779 = 1;
+  std::cout << "Finished!!!!!!" << std::endl;
 
-  uint64_t *tmp780 = make_array<uint64_t>(1);
-  ArgMax1(1, 1, 1001, tmp776, tmp779, tmp780);
-  ClearMemPublic(tmp779);
-  EndComputation();
-
-  std::vector<double> prediction_vector(1001);
-  for (uint64_t i0 = 0; i0 < 1001; i0++) {
-	prediction_vector[i0] = funcReconstruct2PCCons(Arr1DIdxRowM(tmp776, 1001, i0), 2) / 
-	  std::pow(4., kScale);
-  }
-  ClearMemSecret2(1, 1001, tmp776);
-  if (party == CLIENT) {
-	std::sort(prediction_vector.begin(), prediction_vector.end(), 
-			  [](double u, double v) { return u > v; });
-	printf("top-10 values from ResNet50\n");
-	printf("[");
-	for (uint64_t i = 0; i < 10; ++i) {
-	  printf("%.7f,", prediction_vector[i]);
-	}
-	printf("]\n");
-  }
-
-  for (uint64_t i0 = (uint64_t)0; i0 < 1; i0++) {
-    auto pred = funcReconstruct2PCCons(Arr1DIdxRowM(tmp780, 1, i0), 2);
-    if (party == CLIENT) {
-	  printf("predicted label=%lld\n", pred);
-	}
-  }
-
-  finalize();
+  layer1Processor.stopProcessing();
+  layer2Processor.stopProcessing();
+  layer3Processor.stopProcessing();
+  layer4Processor.stopProcessing();
 }

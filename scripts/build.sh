@@ -21,7 +21,7 @@ done
 cd $BUILD_DIR/
 cmake .. -DCMAKE_BUILD_TYPE=Release -DSCI_BUILD_NETWORKS=ON -DOPENSSL_ROOT_DIR=/usr/local/opt/openssl -DCMAKE_PREFIX_PATH=$BUILD_DIR -DUSE_APPROX_RESHARE=ON
 # resnet50 densenet121
-for net in sqnet
+for net in sqnet resnet50
 do
      make ${net}-cheetah -j4 
      # make ${net}-SCI_HE -j4 

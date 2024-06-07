@@ -804,8 +804,6 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
   ReluCommSent[task_number = 1] += curComm;
 #endif
 
-  std::cout << "Relu point 1 task " << task_number << std::endl;
-
   if (doTruncation) {
 #ifdef LOG_LAYERWISE
     INIT_ALL_IO_DATA_SENT;
@@ -820,8 +818,6 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
     for (int i = 0; i < eightDivElemts; i++) {
       tempOutp[i] = tempOutp[i] & moduloMask;
     }
-  
-  std::cout << "Relu point 1.5 task " << task_number << std::endl;
 
 #if USE_CHEETAH == 0
     funcTruncateTwoPowerRingWrapper(eightDivElemts, tempOutp, tempTruncOutp, sf,
@@ -831,16 +827,12 @@ void Relu(int32_t size, intType *inArr, intType *outArr, int sf,
                                         sf, bitlength, true, task_number);
 #endif
 
-  std::cout << "Relu point 2 task " << task_number  << std::endl;
-
 #else
     funcFieldDivWrapper<intType>(eightDivElemts, tempOutp, tempTruncOutp,
                                  1ULL << sf, msbShare, task_number);
 #endif
     memcpy(outArr, tempTruncOutp, size * sizeof(intType));
     delete[] tempTruncOutp;
-
-  std::cout << "Relu point 3 task " << task_number  << std::endl;
 
 #ifdef LOG_LAYERWISE
     auto temp = TIMER_TILL_NOW;

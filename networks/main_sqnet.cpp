@@ -2277,6 +2277,11 @@ int main(int argc, char **argv) {
 
   amap.parse(argc, argv);
 
+  if (im_batch_size > MAX_BATCH) {
+    std::cerr << "Batch size exceeds the maximum batch size supported." << std::endl;
+    return 1;
+  }
+
   assert(party == SERVER || party == CLIENT);
   std::cerr << "Loading input from stdin..." << std::endl;
 
@@ -3086,7 +3091,6 @@ int main(int argc, char **argv) {
 
   auto layer1 = [tmp1, tmp2](uint64_t* input, uint64_t** output, int task_number) {
     StartComputation(task_number);
-    std::cerr << "layer 1 task " << task_number << std::endl;
     uint64_t *tmp53 =
         make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
   #if USE_CHEETAH
@@ -3117,7 +3121,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer2 = [](uint64_t* input, uint64_t** output, int task_number) { 
-    std::cerr << "layer 2 task " << task_number << std::endl;
     uint64_t *tmp59 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
     MaxPool((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)3,
@@ -3125,14 +3128,12 @@ int main(int argc, char **argv) {
             (int32_t)2, (int32_t)2, (int32_t)1, (int32_t)113, (int32_t)113,
             (int32_t)64, input, tmp59, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64, input);
-    std::cerr << "MaxPool passed " << task_number << std::endl;
 
     uint64_t *tmp61 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
     Relu4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, tmp59, tmp61,
           kScale, 1, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, tmp59);
-    std::cerr << "Relu layer 2 passed" << std::endl;
 
     uint64_t *tmpout =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64);
@@ -3144,14 +3145,12 @@ int main(int argc, char **argv) {
   };
 
   auto layer3 = [tmp3, tmp4](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 3 task " << task_number << std::endl;
     uint64_t *tmp63 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
     Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, (int32_t)1,
                   (int32_t)1, (int32_t)16, (int32_t)0, (int32_t)0, (int32_t)0,
                   (int32_t)0, (int32_t)1, (int32_t)1, input, tmp3, tmp63, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)64, input);
-    std::cerr << "Conv layer 3 passed" << std::endl;
 
     uint64_t *tmp66 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
@@ -3234,7 +3233,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer5 = [tmp9, tmp10](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 5 task " << task_number << std::endl;
     uint64_t *tmp91 =
         make_array<uint64_t>((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)16);
     Conv2DWrapper((int32_t)1, (int32_t)56, (int32_t)56, (int32_t)128, (int32_t)1,
@@ -3323,7 +3321,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer7 = [](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 7 task " << task_number << std::endl;
     uint64_t *tmp119 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     MaxPool((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128, (int32_t)3,
@@ -3370,7 +3367,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer9 = [tmp17, tmp18, tmp19, tmp20](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 9 task " << task_number << std::endl;
     uint64_t *tmp129 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
@@ -3430,7 +3426,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer10 = [tmp21, tmp22](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 10 task " << task_number << std::endl;
     uint64_t *tmp149 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)256, (int32_t)1,
@@ -3460,7 +3455,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer11 = [tmp23, tmp24, tmp25, tmp26](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 11 task " << task_number << std::endl;
     uint64_t *tmp157 =
         make_array<uint64_t>((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)128);
     Conv2DWrapper((int32_t)1, (int32_t)27, (int32_t)27, (int32_t)32, (int32_t)1,
@@ -3520,7 +3514,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer12 = [](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 12 task " << task_number << std::endl;
     uint64_t *tmp177 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256);
     MaxPool((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)3,
@@ -3538,7 +3531,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer13 = [tmp27, tmp28](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 13 task " << task_number << std::endl;
     uint64_t *tmp179 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)256, (int32_t)1,
@@ -3568,7 +3560,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer14 = [tmp29, tmp30, tmp31, tmp32](uint64_t* input, uint64_t** output, int task_number) {
-    std::cerr << "layer 14 task " << task_number << std::endl;
     uint64_t *tmp187 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)48, (int32_t)1,
@@ -3581,8 +3572,6 @@ int main(int argc, char **argv) {
     MatAddBroadCast4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192, tmp187,
                     tmp30, tmp189);
     ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192, tmp187);
-
-    std::cerr << "layer 14 Conv2D passed, task " << task_number << std::endl;
 
     uint64_t *tmp192 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)192);
@@ -3894,7 +3883,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer21 = [tmp51, tmp52](uint64_t* input, uint64_t** output, int task_number) {
-    std::cout << "Layer 21, task "<< task_number << std::endl;
     uint64_t *tmp291 =
         make_array<uint64_t>((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)1000);
     Conv2DWrapper((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)512, (int32_t)1,
@@ -3924,7 +3912,6 @@ int main(int argc, char **argv) {
   };
 
   auto layer22 = [](uint64_t* input, uint64_t** output, int task_number) {
-    std::cout << "Layer 22, task "<< task_number << std::endl;
     uint64_t *tmp299 =
         make_array<uint64_t>((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000);
     AvgPool((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000, (int32_t)13,
@@ -3933,8 +3920,6 @@ int main(int argc, char **argv) {
             (int32_t)1000, input, tmp299, task_number);
     ClearMemSecret4((int32_t)1, (int32_t)13, (int32_t)13, (int32_t)1000, input);
 
-    std::cerr << "check" << std::endl;
-
     int64_t tmp301 = (int32_t)3;
 
     uint64_t *tmp302 = make_array<uint64_t>((int32_t)1, (int32_t)1, (int32_t)1);
@@ -3942,7 +3927,6 @@ int main(int argc, char **argv) {
             (int32_t)1, (int32_t)1000, tmp299, tmp301, tmp302, task_number);
     ClearMemPublic(tmp301);
     EndComputation(task_number);
-    std::cerr << "Finished0" << std::endl;
 
     std::vector<double> prediction_vector(1000);
     for (uint64_t i0 = 0; i0 < 1000; i0++) {
@@ -3950,7 +3934,6 @@ int main(int argc, char **argv) {
       / std::pow(2., kScale);
     }
     ClearMemSecret4((int32_t)1, (int32_t)1, (int32_t)1, (int32_t)1000, tmp299);
-    std::cerr << "Finished1" << std::endl;
 
     if (party == CLIENT) {
     std::sort(prediction_vector.begin(), prediction_vector.end(), 
@@ -3962,8 +3945,6 @@ int main(int argc, char **argv) {
     }
     printf("]\n");
     }
-
-    std::cerr << "Finished2" << std::endl;
 
     for (uint64_t i0 = (uint64_t)0; i0 < (int32_t)1; i0++) {
       for (uint64_t i1 = (uint64_t)0; i1 < (int32_t)1; i1++) {
