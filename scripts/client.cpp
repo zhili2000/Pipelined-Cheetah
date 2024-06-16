@@ -81,15 +81,20 @@ int main(int argc, char* argv[]) {
             std::cerr << "Usage: client <host> <port> <framework> <network> <batch_size>\n";
             return 1;
         }
+        const auto startTime = std::chrono::high_resolution_clock::now();
         asio::io_context io_context;
         std::string host = argv[1];
         std::string port = argv[2];
         std::string framework = argv[3];
         std::string network = argv[4];
-	std::string batch_size = argv[5];
+	    std::string batch_size = argv[5];
 
         client c(io_context, host, port, network, framework, batch_size);
         io_context.run();
+        const auto endTime = std::chrono::high_resolution_clock::now();
+        std::cout << "Total time server: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count()
+            << "ms" << std::endl;
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }

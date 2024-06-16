@@ -124,7 +124,7 @@ int main(int argc, char* argv[]) {
             std::cerr << "Usage: server <port>\n";
             return 1;
         }
-
+        const auto startTime = std::chrono::high_resolution_clock::now();
         asio::io_context io_context;
         server srv(io_context, std::stoi(argv[1]));
 
@@ -138,6 +138,10 @@ int main(int argc, char* argv[]) {
         srv.stop();
         server_thread.join();
         std::cout << "Server stopped." << std::endl;
+        const auto endTime = std::chrono::high_resolution_clock::now();
+        std::cout << "Total time server: "
+                    << std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count()
+                    << "ms" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
