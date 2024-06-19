@@ -3100,13 +3100,13 @@ int main(int argc, char **argv) {
     uint64_t *tmp53 =
         make_array<uint64_t>((int32_t)1, (int32_t)113, (int32_t)113, (int32_t)64);
   #if USE_CHEETAH
-    kIsSharedInput = false;
+    kIsSharedInput[task_number] = false;
   #endif
     Conv2DWrapper((int32_t)1, (int32_t)227, (int32_t)227, (int32_t)3, (int32_t)3,
                   (int32_t)3, (int32_t)64, (int32_t)0, (int32_t)0, (int32_t)0,
                   (int32_t)0, (int32_t)2, (int32_t)2, input, tmp1, tmp53, task_number);
   #if USE_CHEETAH
-    kIsSharedInput = true;
+    kIsSharedInput[task_number] = true;
   #endif
     ClearMemSecret4((int32_t)1, (int32_t)227, (int32_t)227, (int32_t)3, input);
 

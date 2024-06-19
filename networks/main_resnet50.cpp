@@ -4991,13 +4991,13 @@ int main(int argc, char **argv) {
 
     uint64_t *tmp256 = make_array<uint64_t>(1, 112, 112, 64);
   #if USE_CHEETAH
-    kIsSharedInput = false;
+    kIsSharedInput[task_number] = false;
   #endif
     Conv2DWrapper(1, 230, 230, 3, 7, 7, 64, 0, 0, 0, 0, 2, 2, tmp253, tmp1,
                   tmp256, task_number);
     ClearMemSecret4(1, 230, 230, 3, tmp253);
   #if USE_CHEETAH
-    kIsSharedInput = true;
+    kIsSharedInput[task_number] = true;
   #endif
 
     uint64_t *tmp259 = make_array<uint64_t>(1, 56, 56, 64);

@@ -46,7 +46,7 @@ ElemWiseProdField *he_prod[MAX_BATCH];
 
 #if USE_CHEETAH
 gemini::CheetahLinear *cheetah_linear[MAX_BATCH];
-bool kIsSharedInput;
+bool kIsSharedInput[MAX_BATCH];
 #elif defined(SCI_HE)
 ConvField *he_conv[MAX_BATCH];
 #endif

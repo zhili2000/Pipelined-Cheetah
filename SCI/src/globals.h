@@ -55,7 +55,7 @@ SOFTWARE.
 #define MAX_THREADS 4
 
 // Maximum batch size allowed
-#define MAX_BATCH 6
+#define MAX_BATCH 10
 
 extern sci::NetIO *io[MAX_BATCH];
 extern sci::OTPack<sci::NetIO> *otpack[MAX_BATCH];
@@ -81,7 +81,7 @@ extern ElemWiseProdField *he_prod[MAX_BATCH];
 
 #if USE_CHEETAH
 extern gemini::CheetahLinear *cheetah_linear[MAX_BATCH];
-extern bool kIsSharedInput;
+extern bool kIsSharedInput[MAX_BATCH];
 #elif defined(SCI_HE)
 extern ConvField *he_conv[MAX_BATCH];
 #endif
