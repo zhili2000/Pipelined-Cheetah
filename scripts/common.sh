@@ -46,6 +46,7 @@ mkdir -p $DEPS_DIR
 
 # change the ip if running remotely
 SERVER_IP=127.0.0.1
+#145.100.135.88
 SERVER_PORT=12345
 
 # fixed-point scale

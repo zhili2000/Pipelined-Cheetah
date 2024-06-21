@@ -9,7 +9,7 @@ std::vector<uint64_t*> loadInput(int im_batch_size) {
       std::vector<std::string> filenames;
       std::string line;
 
-      // Read all filenames from stdin
+      // Read all filenames from stdin.
       while (std::getline(std::cin, line)) {
           filenames.push_back(line);
       }
@@ -40,7 +40,6 @@ std::vector<uint64_t*> loadInput(int im_batch_size) {
           file.close();
       }
     } else {
-        // SERVER party reads directly from stdin
         for (int i = 0; i < im_batch_size; i++) {
             uint64_t* tmp0 = make_array<uint64_t>(1, 227, 227, 3);
             std::cerr << "Loading input from stdin..." << std::endl;

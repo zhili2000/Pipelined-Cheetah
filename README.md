@@ -1,3 +1,29 @@
+# Pipelined-Cheetah
+This repository builds up on the OpenCheetah project (https://github.com/Alibaba-Gemini-Lab/OpenCheetah/commit/1c5cd753e641661fa72cedca34acff45a59dde22).
+* The following files are modified for pipeline parallelism and batch inference
+	* ./networks/main_sqnet.cpp
+    * ./networks/main_resnet50.cpp
+    * ./SCI/src/defines.h
+    * ./SCI/src/functionalities_uniform.h
+    * ./SCI/src/globals.h
+    * ./SCI/src/globals.cpp
+    * ./SCI/src/library_fixed_uniform.cpp
+    * ./SCI/src/library_fixed_uniform.h
+    * ./SCI/src/library_fixed.cpp
+    * ./SCI/src/library_fixed.h
+    * ./SCI/src/library_fixed_uniform_cheetah.cpp
+    * ./SCI/src/library_fixed_common.h
+
+* The following files are created for the client-server application and batch inference
+	* ./scripts/compile-server-client.sh
+    * ./scripts/run-client-optimized.sh
+    * ./scripts/run-server-optimized.sh
+    * ./scripts/server.cpp
+    * ./scripts/client.cpp
+    * ./networks/layer_processor.h
+    * ./networks/load_input.h
+    * ./networks/load_input.cpp
+
 # Cheetah: Lean and Fast Secure Two-Party Deep Neural Network Inference
 This repo contains a proof-of-concept implementation for our [Cheetah paper](https://eprint.iacr.org/2022/207).
 The codes are still under heavy developments, and **should not** be used in any security sensitive product.
@@ -44,21 +70,11 @@ See [QA.md](QA.md).
   
 ### Building Cheetah and SCI-HE Demo
 
-* Run `bash scripts/build.sh` which will build 6 executables in the `build/bin` folder
+* Run `bash scripts/build.sh` which will build 2 executables in the `build/bin` folder
 	* `resnet50-cheetah` 
 	* `sqnet-cheetah`
-	* `densenet121-cheetah`
-	* `resnet50-SCI_HE`
-	* `sqnet-SCI_HE`
-	* `densenet121-SCI_HE`
 
-### Local Demo 
-
-1. On one terminal run `bash scripts/run-server.sh cheetah sqnet`. The program will load the pretrained model in the folder `pretrained/` which might takes some time when the pretrained model is huge. 
-
-2. On other terminal run `bash scripts/run-client.sh cheetah sqnet`. The program will  load the prepared input image in the folder `pretrained`.  
-   * replace `cheetah` by `SCI_HE` to execute the CryptFlow2's counterpart.
-   * replace `sqnet` by `resnet50` to run on the ResNet50 model.
+* These models are modified for pipeline parallelism.
 
 You can change the `SERVER_IP` and `SERVER_PORT` defined in the [scripts/common.sh](scripts/common.sh) to run the demo remotely.
 Also, you can use our throttle script to mimic a remote network condition within one Linux machine, see below.
@@ -68,3 +84,9 @@ Also, you can use our throttle script to mimic a remote network condition within
 * To use the throttle script under [scripts/throttle.sh](scripts/throttle.sh) to limit the network speed and ping latency (require `sudo`)
 * For example, run `sudo scripts/throttle.sh wan` on a Linux OS which will limit the local-loop interface to about 400Mbps bandwidth and 40ms ping latency.
   You can check the ping latency by just `ping 127.0.0.1`. The bandwidth can be check using extra `iperf` command.
+
+### Server-client application
+Install the Boost.asio library with `sudo apt-get install libboost-all-dev`.
+On the terminal run `sudo bash scripts/compile-server-client.sh`.
+To start the server, run `sudo bash scripts/server [port]`.
+To start the client, run `sudo bash scripts/client [ip-address server] [port] cheetah [resnet50 | sqnet] [batch_size]`.

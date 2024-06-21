@@ -4987,7 +4987,7 @@ int main(int argc, char **argv) {
     uint64_t *tmp253 = make_array<uint64_t>(1, 230, 230, 3);
     Pad442(1, 230, 230, 3, 1, 224, 224, 3, input, 4, 2, tmp252, tmp253);
     ClearMemPublic2(4, 2, tmp252);
-    ClearMemSecret4(1, 224, 224, 3, input);
+    ClearMemSecret4(1, 224, 224, 3, input);-------------------
 
     uint64_t *tmp256 = make_array<uint64_t>(1, 112, 112, 64);
   #if USE_CHEETAH

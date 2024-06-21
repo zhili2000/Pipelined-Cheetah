@@ -28,7 +28,7 @@ private:
                 socket_.shutdown(boost::asio::socket_base::shutdown_send);
                 socket_.close();
             } catch (...) {
-                // Handle all exceptions here, potentially logging them
+                std::cerr << "Error closing socket." << std::endl;
             }
             socket_open_ = false;
         }
@@ -49,7 +49,8 @@ private:
     }
 
     void process_data() {
-        auto self = shared_from_this(); // Maintain a reference to keep the session alive
+        // Maintain a reference to keep the session alive
+        auto self = shared_from_this();
         std::istringstream iss(data_);
         std::string network, framework, batch_size;
         iss >> network >> framework >> batch_size;
@@ -70,7 +71,7 @@ private:
                         });
                 }
             });
-        }).detach(); // Consider alternatives to detaching
+        }).detach();
     }
 
     tcp::socket socket_;

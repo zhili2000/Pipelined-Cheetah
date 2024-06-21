@@ -8,7 +8,7 @@
 #include <atomic>
 #include <tuple>
 
-// Define a class to handle layer processing
+// Class that handles the processing of a layer.
 class LayerProcessor {
 public:
     LayerProcessor(std::function<void(uint64_t*, uint64_t**, int)> layerFunc, size_t initialPendingTasks)
@@ -16,12 +16,10 @@ public:
 
     void addTask(uint64_t* input, int task_number
   ) {
-        uint64_t* output = nullptr; // Initialize output pointer
+        uint64_t* output = nullptr;
         {
           std::unique_lock<std::mutex> lock(mtx);
-          tasks.push(std::make_tuple(input, &output, task_number
-        
-    ));
+          tasks.push(std::make_tuple(input, &output, task_number));
         }
         cv.notify_one();
     }
@@ -41,13 +39,14 @@ public:
           }
           layerFunc(std::get<0>(task), std::get<1>(task), std::get<2>(task));
           if (nextLayerProcessor) {
-              nextLayerProcessor->addTask(*std::get<1>(task), std::get<2>(task)); // Pass current output as next input
+              // Pass current output as next input.
+              nextLayerProcessor->addTask(*std::get<1>(task), std::get<2>(task));
           }
           {
             std::unique_lock<std::mutex> lock(mtx);
             pendingTasks -= 1;
             if (pendingTasks == 0) {
-              cv.notify_all(); // Notify that pendingTasks is zero
+              cv.notify_all();
             }
           }
         }
@@ -67,6 +66,7 @@ public:
         {
           std::unique_lock<std::mutex> lock(mtx);
           stop = true;
+          // Notify all threads can be stopped.
           cv.notify_all();
         }
       }
